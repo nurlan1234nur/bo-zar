@@ -1,0 +1,18 @@
+{
+  "name": "bo-zar-platform",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev:backend": "corepack pnpm --dir backend dev",
+    "dev:mobile": "corepack pnpm --dir mobile-app dev",
+    "dev:web": "corepack pnpm --dir web-app dev",
+    "dev:admin": "corepack pnpm --dir admin-web dev",
+    "seed:backend": "corepack pnpm --dir backend seed",
+    "build:backend": "corepack pnpm --dir backend build",
+    "build:web": "corepack pnpm --dir web-app build",
+    "build:admin": "corepack pnpm --dir admin-web build",
+    "lint": "corepack pnpm -r lint",
+    "test": "corepack pnpm -r test"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

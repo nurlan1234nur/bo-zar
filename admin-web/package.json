@@ -1,0 +1,28 @@
+{
+  "name": "@bozar/admin-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3001 --configLoader native",
+    "build": "tsc -b && vite build --configLoader native",
+    "preview": "vite preview --port 3001",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "test": "echo \"Admin web tests pending\""
+  },
+  "dependencies": {
+    "@bozar/api-client": "workspace:*",
+    "@bozar/design-tokens": "workspace:*",
+    "@bozar/shared-types": "workspace:*",
+    "@vitejs/plugin-react": "^4.3.1",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.5.4"
+  }
+}

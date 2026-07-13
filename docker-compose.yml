@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: bozar_postgres
+    environment:
+      POSTGRES_DB: bozar_db
+      POSTGRES_USER: bozar_user
+      POSTGRES_PASSWORD: bozar_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: bozar_backend
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+  web-app:
+    build: ./web-app
+    container_name: bozar_web_app
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  admin-web:
+    build: ./admin-web
+    container_name: bozar_admin_web
+    ports:
+      - "3001:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

@@ -1,0 +1,6 @@
+packages:
+  - "backend"
+  - "mobile-app"
+  - "web-app"
+  - "admin-web"
+  - "packages/*"

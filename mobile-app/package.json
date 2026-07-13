@@ -1,0 +1,33 @@
+{
+  "name": "@bozar/mobile-app",
+  "private": true,
+  "version": "0.1.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "lint": "echo \"Mobile lint pending\"",
+    "test": "echo \"Mobile tests pending\""
+  },
+  "dependencies": {
+    "@bozar/api-client": "workspace:*",
+    "@bozar/design-tokens": "workspace:*",
+    "@bozar/shared-types": "workspace:*",
+    "@expo/vector-icons": "^15.0.3",
+    "@react-native-async-storage/async-storage": "^3.1.1",
+    "@react-navigation/bottom-tabs": "^6.6.1",
+    "@react-navigation/native": "^6.1.18",
+    "expo": "^54.0.35",
+    "expo-image-picker": "^57.0.1",
+    "expo-status-bar": "^3.0.9",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-safe-area-context": "^5.6.2",
+    "react-native-screens": "^4.16.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.17",
+    "typescript": "^5.5.4"
+  }
+}
