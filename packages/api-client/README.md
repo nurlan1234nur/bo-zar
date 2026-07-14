@@ -2,7 +2,7 @@
 
 Shared REST API client used by `mobile-app`, `web-app`, and `admin-web`.
 
-Planned modules:
+Implemented API factories:
 
 - `authApi`
 - `usersApi`
@@ -12,3 +12,6 @@ Planned modules:
 - `favoritesApi`
 - `reportsApi`
 - `adminApi`
+- `imagesApi`
+
+Update this package together with backend contracts, `@bozar/shared-types`, affected clients, tests, and API documentation.

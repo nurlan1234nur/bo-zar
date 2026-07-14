@@ -21,5 +21,5 @@ Uses the same NestJS backend as `web-app` and `admin-web`.
 Environment variable:
 
 ```env
-EXPO_PUBLIC_API_BASE_URL=http://localhost:8080/api/v1
+EXPO_PUBLIC_API_BASE_URL=<API_BASE_URL>
 ```

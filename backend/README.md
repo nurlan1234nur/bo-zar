@@ -32,7 +32,7 @@ src
 
 ## API Reference
 
-See `../docs/corrected/07_api_design.md`.
+See the canonical [API architecture](../docs/architecture/api.md) and [database architecture](../docs/architecture/database.md).
 
 ## Database
 

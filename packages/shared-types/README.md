@@ -2,7 +2,7 @@
 
 Shared TypeScript contracts for backend, mobile app, web app, admin web, and API client.
 
-Planned exports:
+Implemented contract groups include:
 
 - `User`
 - `Role`
@@ -14,3 +14,5 @@ Planned exports:
 - `Report`
 - `AdminActionLog`
 - `ApiResponse`
+
+The current source file is authoritative for exact exports. Keep these contracts synchronized with backend responses, the API client, and all consumers.
