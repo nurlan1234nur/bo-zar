@@ -25,11 +25,13 @@ BO Zar is a centralized classifieds marketplace for Bayan-Ulgii residents, inclu
 
 - Browse paginated active ads without authentication.
 - View ad details and seller contact information.
-- Search titles and filter by category, subcategory, location, price, and status.
+- Search titles and filter public discovery by keyword, category, subcategory, location, and price.
+- Public list and detail expose only `ACTIVE`, non-expired advertisements.
+- Advertisement status management belongs to authenticated owner and admin workflows, not public discovery filtering.
 - Sort by newest, oldest, most viewed, and price.
 - Authenticated owners can create, edit, change status, and soft-delete ads.
 - Authenticated users can upload supported image formats within the API limits.
-- Authenticated users can save/remove favorites and submit one report per ad.
+- Authenticated users can save currently public-visible advertisements, remove favorites, and submit one report per ad. Favorite rows whose advertisements later become restricted remain stored but are hidden from responses.
 
 ### Moderation and catalog
 

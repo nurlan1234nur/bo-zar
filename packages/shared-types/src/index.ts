@@ -49,12 +49,11 @@ export interface Location {
   type: "city" | "district" | "province" | "sum";
 }
 
-export interface PublicAdvertisement {
+export interface AdvertisementView {
   adId: number;
   title: string;
   description: string;
   price?: number;
-  status: "ACTIVE" | "SOLD";
   categoryId: number;
   subcategoryId?: number;
   locationId: number;
@@ -64,6 +63,14 @@ export interface PublicAdvertisement {
   imageUrl: string;
   viewCount: number;
   createdAt: string;
+}
+
+export interface PublicAdvertisement extends AdvertisementView {
+  status: "ACTIVE";
+}
+
+export interface OwnerAdvertisement extends AdvertisementView {
+  status: AdvertisementStatus;
 }
 
 export interface PaginatedAds {

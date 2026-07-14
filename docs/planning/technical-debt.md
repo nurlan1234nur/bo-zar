@@ -3,7 +3,6 @@
 ## High priority: security and authorization
 
 - Image upload/delete lacks ownership checks.
-- Public ad status/detail access does not consistently restrict non-active content.
 - Existing JWTs remain usable after a user is blocked or suspended.
 - Password reset is development-oriented, deterministic by time window, and lacks durable single-use delivery/state.
 - Upload validation relies on filename extensions and may leave orphan files.
@@ -42,3 +41,7 @@
 - Component READMEs must stay synchronized with package source.
 
 Address security and truthful error handling before adding major product features.
+
+## Resolved security items
+
+- Public advertisement list/detail and favorites add/list queries enforce `ACTIVE` status and exclude records whose expiration is at or before the request time. Restricted favorite rows remain stored but hidden; non-public owner and moderation workflows remain separate.

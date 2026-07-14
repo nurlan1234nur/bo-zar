@@ -33,7 +33,7 @@ The archived Figma export is reference-only and is not part of the runtime works
 ### Backend
 
 - JWT registration/login, current profile, password change, and development-oriented password reset
-- Ad list/detail/create/update/status/soft-delete with filters and sorting
+- Public ad list/detail restricted to ACTIVE, non-expired records; authenticated create/update/status/soft-delete with filters and sorting
 - Category, subcategory, and location catalogs
 - Favorites and reports
 - Local image upload/static serving
@@ -74,7 +74,6 @@ The archived Figma export is reference-only and is not part of the runtime works
 ## High-priority limitations
 
 - Image routes lack ownership checks and physical-file cleanup.
-- Public ad status/detail behavior can expose non-active ads.
 - User status changes do not invalidate existing JWTs.
 - Password reset is not a production delivery/session design.
 - Several services suppress persistence errors and return empty/synthetic/success-shaped data.
@@ -90,7 +89,7 @@ The archived Figma export is reference-only and is not part of the runtime works
 
 At the latest review:
 
-- Backend: 9 Jest suites and 29 tests passed.
+- Backend: 10 Jest suites and 55 tests passed.
 - Backend build passed.
 - Public web production build passed.
 - Admin web production build passed.

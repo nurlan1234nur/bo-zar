@@ -26,8 +26,8 @@ The NestJS API uses the `/api/v1` prefix. Current controllers, DTOs, guards, and
 | User | `GET /users/me` | Current profile |
 | User | `PUT /users/me` | Update current profile |
 | User | `GET /users/me/ads` | Current user's ads |
-| Public | `GET /ads` | Paginated/filterable ad list |
-| Public | `GET /ads/:adId` | Ad detail |
+| Public | `GET /ads` | Paginated/filterable ACTIVE, non-expired ad list |
+| Public | `GET /ads/:adId` | ACTIVE, non-expired ad detail; other records return 404 |
 | User | `POST /ads` | Create ad |
 | User | `PUT /ads/:adId` | Update owned ad |
 | User | `DELETE /ads/:adId` | Soft-delete owned ad |
@@ -38,8 +38,8 @@ The NestJS API uses the `/api/v1` prefix. Current controllers, DTOs, guards, and
 | Public | `GET /categories/:categoryId/subcategories` | Active subcategories |
 | Public | `GET /locations` | Locations |
 | Public | `GET /locations/:locationId/children` | Child locations |
-| User | `POST /favorites/:adId` | Add favorite |
-| User | `GET /favorites` | Favorite ads |
+| User | `POST /favorites/:adId` | Add an ACTIVE, non-expired advertisement to favorites |
+| User | `GET /favorites` | Favorite ads that remain ACTIVE and non-expired |
 | User | `DELETE /favorites/:adId` | Remove favorite |
 | User | `POST /reports` | Submit report |
 | Admin | `GET /admin/reports` | Reports |
@@ -59,7 +59,11 @@ The NestJS API uses the `/api/v1` prefix. Current controllers, DTOs, guards, and
 
 ## Ad queries
 
-`GET /ads` accepts `page`, `size`, `keyword`, `categoryId`, `subcategoryId`, `locationId`, `minPrice`, `maxPrice`, `status`, and `sort`. Page size is bounded by the service. Sort values are `newest`, `oldest`, `mostViewed`, `priceAsc`, and `priceDesc`. Keyword matching currently searches title only.
+`GET /ads` accepts `page`, `size`, `keyword`, `categoryId`, `subcategoryId`, `locationId`, `minPrice`, `maxPrice`, and `sort`. Page size is bounded by the service. Sort values are `newest`, `oldest`, `mostViewed`, `priceAsc`, and `priceDesc`. Keyword matching currently searches title only.
+
+Public list and detail access is restricted server-side to advertisements with `ACTIVE` status whose `expiredAt` is either null or later than the request time. A caller-supplied `status` query does not override this rule. Public detail returns 404 for missing, non-`ACTIVE`, or time-expired records without revealing that a restricted record exists. Owner and admin workflows use separate authenticated queries.
+
+Authentication does not override advertisement visibility for favorites. Adding a missing or restricted advertisement returns 404, and the favorites list omits stored favorite rows whose advertisements are no longer `ACTIVE` and non-expired. Reads do not delete those historical favorite rows.
 
 ## Key DTO rules
 
@@ -83,7 +87,6 @@ Refer to DTO source for exact length and numeric bounds; duplicate validation ta
 
 ## Known contract limitations
 
-- Public status filtering/detail access can expose non-active ads.
 - Image routes do not verify ad/image ownership.
 - Some services suppress persistence errors and return success-shaped or synthetic data.
 - Logout has no server-side revocation.

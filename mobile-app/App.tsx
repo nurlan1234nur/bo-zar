@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { ApiClient, createAdsApi, createAuthApi, createCatalogApi, createFavoritesApi, createImagesApi, createReportsApi } from "@bozar/api-client";
 import { theme } from "../packages/design-tokens/src/index";
-import { type Category, type Location, type PublicAdvertisement } from "@bozar/shared-types";
+import { type AdvertisementView, type Category, type Location, type OwnerAdvertisement, type PublicAdvertisement } from "@bozar/shared-types";
 import { filterAds, formatPrice, getApiErrorMessage, hasImage, resolveImageUrlValue, type SearchSort } from "./src/app-utils";
 
 declare const process: {
@@ -300,11 +300,11 @@ function DetailScreen({
   toggleFavorite,
   reportAd,
 }: {
-  ad: PublicAdvertisement;
+  ad: AdvertisementView;
   isFavorite: boolean;
   onBack: () => void;
-  toggleFavorite: (ad: PublicAdvertisement) => void;
-  reportAd: (ad: PublicAdvertisement) => void;
+  toggleFavorite: (ad: AdvertisementView) => void;
+  reportAd: (ad: AdvertisementView) => void;
 }) {
   return (
     <ScrollView contentContainerStyle={styles.detailScroll}>
@@ -360,7 +360,7 @@ function CreateScreen({
 }: {
   categories: Category[];
   locations: Location[];
-  ad?: PublicAdvertisement | null;
+  ad?: OwnerAdvertisement | null;
   onSave: (payload: CreateAdPayload, images?: PickedImage[]) => void;
   onDelete?: () => void;
   onCancel: () => void;
@@ -587,11 +587,11 @@ function ProfileScreen({
   onNotice,
 }: {
   session?: AuthSession;
-  myAds: PublicAdvertisement[];
+  myAds: OwnerAdvertisement[];
   locations: Location[];
-  openAd: (ad: PublicAdvertisement) => void;
-  onEdit: (ad: PublicAdvertisement) => void;
-  onDelete: (ad: PublicAdvertisement) => void;
+  openAd: (ad: AdvertisementView) => void;
+  onEdit: (ad: OwnerAdvertisement) => void;
+  onDelete: (ad: OwnerAdvertisement) => void;
   onAuthenticated: (session: AuthSession) => void;
   onLogout: () => void;
   onNotice: (message: string) => void;
@@ -794,17 +794,17 @@ function ProfileScreen({
 
 export default function App() {
   const [tab, setTab] = React.useState<TabId>("home");
-  const [selectedAd, setSelectedAd] = React.useState<PublicAdvertisement | null>(null);
+  const [selectedAd, setSelectedAd] = React.useState<AdvertisementView | null>(null);
   const [ads, setAds] = React.useState<PublicAdvertisement[]>([]);
   const [categories, setCategories] = React.useState<Category[]>([]);
   const [locations, setLocations] = React.useState<Location[]>([]);
   const [favoriteIds, setFavoriteIds] = React.useState<Set<number>>(new Set());
   const [session, setSession] = React.useState<AuthSession | undefined>();
-  const [myAds, setMyAds] = React.useState<PublicAdvertisement[]>([]);
+  const [myAds, setMyAds] = React.useState<OwnerAdvertisement[]>([]);
   const [source, setSource] = React.useState<"api" | "offline">("offline");
   const [notice, setNotice] = React.useState("");
   const [sessionReady, setSessionReady] = React.useState(false);
-  const [editingAd, setEditingAd] = React.useState<PublicAdvertisement | null>(null);
+  const [editingAd, setEditingAd] = React.useState<OwnerAdvertisement | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [searchCategoryId, setSearchCategoryId] = React.useState<number | "all">("all");
@@ -830,7 +830,7 @@ export default function App() {
         try {
           const [favoritesResponse, myAdsResponse] = await Promise.all([favoritesApi.list(), authApi.myAds()]);
           setFavoriteIds(new Set(favoritesResponse.data.map((ad) => ad.adId)));
-          setMyAds((myAdsResponse as { data: PublicAdvertisement[] }).data);
+          setMyAds(myAdsResponse.data);
         } catch {
           setFavoriteIds(new Set());
           setMyAds([]);
@@ -886,7 +886,7 @@ export default function App() {
       .then(([favoritesResponse, myAdsResponse]) => {
         if (!alive) return;
         setFavoriteIds(new Set(favoritesResponse.data.map((ad) => ad.adId)));
-        setMyAds((myAdsResponse as { data: PublicAdvertisement[] }).data);
+        setMyAds(myAdsResponse.data);
       })
       .catch(() => {
         if (!alive) return;
@@ -903,13 +903,13 @@ export default function App() {
     void loadAppData();
   }, []);
 
-  const openAd = (ad: PublicAdvertisement) => setSelectedAd(ad);
+  const openAd = (ad: AdvertisementView) => setSelectedAd(ad);
   const closeAd = () => setSelectedAd(null);
   const beginCreate = () => {
     setEditingAd(null);
     setTab("create");
   };
-  const beginEdit = (ad: PublicAdvertisement) => {
+  const beginEdit = (ad: OwnerAdvertisement) => {
     setEditingAd(ad);
     setTab("create");
   };
@@ -933,7 +933,7 @@ export default function App() {
     void AsyncStorage.removeItem(SESSION_STORAGE_KEY);
   }
 
-  async function deleteAd(ad: PublicAdvertisement) {
+  async function deleteAd(ad: OwnerAdvertisement) {
     if (!session) {
       setNotice("Зар устгахын тулд нэвтэрнэ үү");
       setTab("profile");
@@ -958,7 +958,7 @@ export default function App() {
     }
   }
 
-  async function toggleFavorite(ad: PublicAdvertisement) {
+  async function toggleFavorite(ad: AdvertisementView) {
     if (!session) {
       setNotice("Favorite ашиглахын тулд нэвтэрнэ үү");
       setTab("profile");
@@ -986,7 +986,7 @@ export default function App() {
     }
   }
 
-  async function reportAd(ad: PublicAdvertisement) {
+  async function reportAd(ad: AdvertisementView) {
     if (!session) {
       setNotice("Report илгээхийн тулд нэвтэрнэ үү");
       setTab("profile");
@@ -1011,17 +1011,15 @@ export default function App() {
     const isEditing = Boolean(editingAd);
     try {
       const selectedLocation = locations.find((location) => location.locationId === payload.locationId) ?? locations[0];
-      const response = isEditing
-        ? ((await adsApi.update(editingAd!.adId, payload)) as { data: PublicAdvertisement })
-        : ((await adsApi.create(payload)) as { data: { adId?: number; status?: PublicAdvertisement["status"] } });
-      const savedAd: PublicAdvertisement = isEditing
+      const response = isEditing ? await adsApi.update(editingAd!.adId, payload) : await adsApi.create(payload);
+      const savedAd: OwnerAdvertisement = isEditing
         ? {
-            ...(response as { data: PublicAdvertisement }).data,
+            ...response.data,
             adId: editingAd!.adId,
             title: payload.title,
             description: payload.description,
             price: payload.price,
-            status: (response as { data: PublicAdvertisement }).data.status === "SOLD" ? "SOLD" : "ACTIVE",
+            status: response.data.status,
             categoryId: payload.categoryId,
             locationId: payload.locationId,
             locationName: selectedLocation?.name ?? "",
@@ -1032,7 +1030,7 @@ export default function App() {
             createdAt: editingAd?.createdAt ?? new Date().toISOString(),
           }
         : {
-            adId: (response as { data: { adId?: number } }).data.adId ?? Date.now(),
+            adId: response.data.adId ?? Date.now(),
             title: payload.title,
             description: payload.description,
             price: payload.price,
@@ -1070,7 +1068,9 @@ export default function App() {
       }
       setAds((current) => {
         const withoutCurrent = current.filter((item) => item.adId !== savedAd.adId);
-        return [savedAd, ...withoutCurrent];
+        if (savedAd.status !== "ACTIVE") return withoutCurrent;
+        const publicSavedAd: PublicAdvertisement = { ...savedAd, status: "ACTIVE" };
+        return [publicSavedAd, ...withoutCurrent];
       });
       setMyAds((current) => {
         const withoutCurrent = current.filter((item) => item.adId !== savedAd.adId);
