@@ -1,7 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Advertisement } from "../ads/entities/advertisement.entity";
+import { publicAdvertisementVisibilityWhere } from "../ads/public-ad-visibility";
 import { User } from "../users/entities/user.entity";
 import { Favorite } from "./entities/favorite.entity";
 
@@ -14,19 +15,22 @@ export class FavoritesService {
   ) {}
 
   async add(userId: string, adId: string) {
-    try {
-      const existing = await this.favoriteRepository.findOne({
-        where: { user: { userId }, advertisement: { adId } },
-        relations: ["user", "advertisement"],
-      });
+    const publicNow = new Date();
+    const advertisement = await this.advertisementRepository.findOne({
+      where: { adId, ...publicAdvertisementVisibilityWhere(publicNow) },
+    });
+    if (!advertisement) {
+      throw new NotFoundException("Advertisement not found");
+    }
 
-      if (!existing) {
-        const user = await this.userRepository.findOneByOrFail({ userId });
-        const advertisement = await this.advertisementRepository.findOneByOrFail({ adId });
-        await this.favoriteRepository.save(this.favoriteRepository.create({ user, advertisement }));
-      }
-    } catch {
-      // Keep UI usable while DB setup is still in progress.
+    const existing = await this.favoriteRepository.findOne({
+      where: { user: { userId }, advertisement: { adId } },
+      relations: ["user", "advertisement"],
+    });
+
+    if (!existing) {
+      const user = await this.userRepository.findOneByOrFail({ userId });
+      await this.favoriteRepository.save(this.favoriteRepository.create({ user, advertisement }));
     }
 
     return { adId: Number(adId), favorited: true };
@@ -34,8 +38,12 @@ export class FavoritesService {
 
   async findAll(userId: string) {
     try {
+      const publicNow = new Date();
       const favorites = await this.favoriteRepository.find({
-        where: { user: { userId } },
+        where: {
+          user: { userId },
+          advertisement: publicAdvertisementVisibilityWhere(publicNow),
+        },
         relations: ["advertisement", "advertisement.category", "advertisement.subcategory", "advertisement.location", "advertisement.user", "advertisement.images"],
         order: { createdAt: "DESC" },
       });

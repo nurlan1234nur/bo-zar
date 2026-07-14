@@ -1,7 +1,15 @@
 import { ApiClient, createAdsApi, createAuthApi, createImagesApi } from "../../packages/api-client/src/index";
+import type { AdvertisementStatus, OwnerAdvertisement, PublicAdvertisement } from "../../packages/shared-types/src/index";
+
+type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2 ? true : false;
+type Expect<Value extends true> = Value;
+type PublicStatusIsActive = Expect<Equal<PublicAdvertisement["status"], "ACTIVE">>;
+type OwnerStatusIsComplete = Expect<Equal<OwnerAdvertisement["status"], AdvertisementStatus>>;
 
 describe("api client", () => {
   const fetchMock = jest.fn();
+  const publicStatusContract: PublicStatusIsActive = true;
+  const ownerStatusContract: OwnerStatusIsComplete = true;
 
   beforeEach(() => {
     fetchMock.mockReset();
@@ -10,6 +18,11 @@ describe("api client", () => {
       json: jest.fn().mockResolvedValue({ success: true, data: {} }),
     });
     global.fetch = fetchMock as never;
+  });
+
+  it("keeps public and owner advertisement status contracts distinct", () => {
+    expect(publicStatusContract).toBe(true);
+    expect(ownerStatusContract).toBe(true);
   });
 
   it("adds JSON content type and bearer token for normal requests", async () => {

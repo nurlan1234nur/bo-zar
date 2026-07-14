@@ -1,4 +1,16 @@
-import type { AdminActionLog, AdminReport, AdminStats, AdminUser, ApiResponse, Category, Location, PaginatedAds, PublicAdvertisement } from "@bozar/shared-types";
+import type {
+  AdminActionLog,
+  AdminReport,
+  AdminStats,
+  AdminUser,
+  AdvertisementStatus,
+  ApiResponse,
+  Category,
+  Location,
+  OwnerAdvertisement,
+  PaginatedAds,
+  PublicAdvertisement,
+} from "@bozar/shared-types";
 
 export interface ApiClientOptions {
   baseUrl: string;
@@ -96,7 +108,7 @@ export function createAuthApi(client: ApiClient) {
       });
     },
     myAds() {
-      return client.request("/users/me/ads");
+      return client.request<ApiResponse<OwnerAdvertisement[]>>("/users/me/ads");
     },
   };
 }
@@ -110,13 +122,13 @@ export function createAdsApi(client: ApiClient) {
       return client.request<ApiResponse<PublicAdvertisement>>(`/ads/${adId}`);
     },
     create(payload: unknown) {
-      return client.request("/ads", {
+      return client.request<ApiResponse<{ adId: number; status: "ACTIVE" }>>("/ads", {
         method: "POST",
         body: JSON.stringify(payload),
       });
     },
     update(adId: string | number, payload: unknown) {
-      return client.request(`/ads/${adId}`, {
+      return client.request<ApiResponse<OwnerAdvertisement>>(`/ads/${adId}`, {
         method: "PUT",
         body: JSON.stringify(payload),
       });
@@ -124,7 +136,7 @@ export function createAdsApi(client: ApiClient) {
     remove(adId: string | number) {
       return client.request(`/ads/${adId}`, { method: "DELETE" });
     },
-    updateStatus(adId: string | number, status: PublicAdvertisement["status"] | "INACTIVE" | "EXPIRED" | "HIDDEN" | "DELETED") {
+    updateStatus(adId: string | number, status: AdvertisementStatus) {
       return client.request(`/ads/${adId}/status`, {
         method: "PATCH",
         body: JSON.stringify({ status }),

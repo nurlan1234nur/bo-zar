@@ -1,9 +1,10 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Between, FindOptionsOrder, FindOptionsWhere, ILike, LessThanOrEqual, MoreThanOrEqual, Repository } from "typeorm";
+import { Between, FindOptionsOrder, ILike, LessThanOrEqual, MoreThanOrEqual, Repository } from "typeorm";
 import { AdvertisementStatus } from "../common/enums";
 import { SystemLogsService } from "../system-logs/system-logs.service";
 import { Advertisement } from "./entities/advertisement.entity";
+import { publicAdvertisementVisibilityWhere } from "./public-ad-visibility";
 
 export interface PublicAdPayload {
   title?: string;
@@ -31,9 +32,7 @@ export class AdsService {
     const locationId = query.locationId ? Number(query.locationId) : undefined;
     const minPrice = query.minPrice ? Number(query.minPrice) : undefined;
     const maxPrice = query.maxPrice ? Number(query.maxPrice) : undefined;
-    const status = (query.status as AdvertisementStatus | undefined) ?? AdvertisementStatus.ACTIVE;
-
-    const where: FindOptionsWhere<Advertisement> = { status };
+    const where = publicAdvertisementVisibilityWhere(new Date());
 
     if (categoryId) {
       where.category = { categoryId: String(categoryId) };
@@ -81,7 +80,7 @@ export class AdsService {
 
   async findOne(adId: string) {
     const ad = await this.advertisementRepository.findOne({
-      where: { adId },
+      where: { adId, ...publicAdvertisementVisibilityWhere(new Date()) },
       relations: ["category", "subcategory", "location", "user", "images"],
     });
 

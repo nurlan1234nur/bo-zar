@@ -317,7 +317,7 @@ function App() {
 
     try {
       const response = await adsApi.create(payload);
-      const data = (response as { data?: Partial<PublicAdvertisement> & { adId?: number } }).data;
+      const data = response.data;
       const createdId = data?.adId ?? Date.now();
       const selectedImagePreview = files[0] ? URL.createObjectURL(files[0]) : undefined;
       const fallback: PublicAdvertisement = {
@@ -336,7 +336,7 @@ function App() {
         viewCount: 0,
         createdAt: new Date().toISOString(),
       };
-      const nextAd: PublicAdvertisement = { ...fallback, ...data, status: data?.status === "SOLD" ? "SOLD" : "ACTIVE" };
+      const nextAd: PublicAdvertisement = { ...fallback, ...data, status: "ACTIVE" };
       if (files.length > 0 && data?.adId) {
         try {
           const uploadResponse = (await imagesApi.upload(data.adId, files)) as { data?: Array<{ imageUrl: string }> };
