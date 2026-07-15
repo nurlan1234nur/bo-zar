@@ -2,10 +2,9 @@
 
 ## High priority: security and authorization
 
-- Image upload/delete lacks ownership checks.
 - Existing JWTs remain usable after a user is blocked or suspended.
 - Password reset is development-oriented, deterministic by time window, and lacks durable single-use delivery/state.
-- Upload validation relies on filename extensions and may leave orphan files.
+- Public `/uploads` URLs are not status-aware, so a known image URL remains directly reachable after an advertisement is hidden or deleted.
 
 ## High priority: truthful behavior and data integrity
 
@@ -13,7 +12,8 @@
 - Some admin mutations report success when targets do not exist.
 - Admin action attribution relies on a seeded account rather than the authenticated actor.
 - Report reviewer tracking is incomplete.
-- Image database rows and physical files have no coordinated lifecycle.
+- Image cleanup coordinates normal request failures, but process crashes can still leave orphan files because PostgreSQL and the local filesystem cannot share an atomic transaction.
+- The database has no partial unique constraint guaranteeing one main image per advertisement; service locking is the current concurrency boundary.
 
 ## Functional gaps
 
@@ -45,3 +45,4 @@ Address security and truthful error handling before adding major product feature
 ## Resolved security items
 
 - Public advertisement list/detail and favorites add/list queries enforce `ACTIVE` status and exclude records whose expiration is at or before the request time. Restricted favorite rows remain stored but hidden; non-public owner and moderation workflows remain separate.
+- Generic image upload/delete endpoints enforce advertisement ownership without staff override, validate JPEG/PNG/WEBP content before permanent storage, use UUID filenames and path containment, cap each advertisement at eight images, and compensate for normal filesystem/database failures.

@@ -79,15 +79,21 @@ Refer to DTO source for exact length and numeric bounds; duplicate validation ta
 ## Image upload
 
 - Multipart field: `files`
-- Maximum files per request: 8
+- Only the authenticated advertisement owner can upload or delete images; other users, including staff using the generic image endpoints, receive `403`.
+- Missing advertisements or images return `404`.
+- New uploads are rejected for `HIDDEN` and `DELETED` advertisements. Owners may still delete existing images from those advertisements.
+- Maximum images per advertisement: 8; each upload request is also limited to 8 files.
 - Maximum size per file: 5 MB
-- Accepted filename extensions: JPG/JPEG, PNG, WEBP
-- Storage: local filesystem
+- Accepted content: JPEG, PNG, and WEBP. Declared MIME type, filename extension, and detected magic bytes must agree; common JPEG aliases are normalized.
+- Storage: local filesystem using server-generated UUID filenames. Original filenames never become storage paths.
+- Validation and authorization complete before permanent files are written. Database writes use a transaction, and request-created files are removed when filesystem or database work fails.
+- Image deletion stages the physical file, deletes metadata transactionally, restores the file on database rollback, and selects the oldest remaining image (then lowest ID) as the replacement main image.
 - Returned thumbnail URL currently points to the same stored file; thumbnail generation is not implemented
 
 ## Known contract limitations
 
-- Image routes do not verify ad/image ownership.
+- Uploaded files remain directly reachable through public `/uploads` URLs if the URL is known, even after an advertisement becomes hidden or deleted; status-aware asset delivery is not implemented.
+- The database does not enforce a partial unique constraint for one main image per advertisement. Service transactions reduce conflicts, but cross-process/concurrent integrity remains a known limitation.
 - Some services suppress persistence errors and return success-shaped or synthetic data.
 - Logout has no server-side revocation.
 - Password reset is development-oriented and lacks durable single-use delivery/state.

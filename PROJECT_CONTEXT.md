@@ -36,7 +36,7 @@ The archived Figma export is reference-only and is not part of the runtime works
 - Public ad list/detail restricted to ACTIVE, non-expired records; authenticated create/update/status/soft-delete with filters and sorting
 - Category, subcategory, and location catalogs
 - Favorites and reports
-- Local image upload/static serving
+- Owner-only local image upload/delete with JPEG/PNG/WEBP content validation, per-ad limits, UUID filenames, and compensating file/database cleanup
 - Admin users/reports/stats/logs, moderation, and catalog management
 - Request/event logging plus liveness/readiness endpoints
 - Two migrations: initial marketplace schema and system-event logs
@@ -73,7 +73,8 @@ The archived Figma export is reference-only and is not part of the runtime works
 
 ## High-priority limitations
 
-- Image routes lack ownership checks and physical-file cleanup.
+- Uploaded image URLs are served directly from public `/uploads` paths without advertisement-status checks; local filesystem storage also lacks a durable multi-instance strategy.
+- PostgreSQL does not enforce a single-main-image constraint, and process crashes can still leave image orphans outside the normal compensating-cleanup path.
 - User status changes do not invalidate existing JWTs.
 - Password reset is not a production delivery/session design.
 - Several services suppress persistence errors and return empty/synthetic/success-shaped data.
