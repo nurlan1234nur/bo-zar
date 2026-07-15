@@ -30,7 +30,7 @@ BO Zar is a centralized classifieds marketplace for Bayan-Ulgii residents, inclu
 - Advertisement status management belongs to authenticated owner and admin workflows, not public discovery filtering.
 - Sort by newest, oldest, most viewed, and price.
 - Authenticated owners can create, edit, change status, and soft-delete ads.
-- Authenticated users can upload supported image formats within the API limits.
+- Authenticated advertisement owners can upload up to eight JPEG, PNG, or WEBP images to their own non-hidden, non-deleted advertisements, with a 5 MB limit per image and server-side content validation. Owners can delete existing images from their own advertisements, including hidden or deleted advertisements.
 - Authenticated users can save currently public-visible advertisements, remove favorites, and submit one report per ad. Favorite rows whose advertisements later become restricted remain stored but are hidden from responses.
 
 ### Moderation and catalog

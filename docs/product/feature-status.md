@@ -16,7 +16,7 @@ Status meanings:
 | Search/filter/sort | Implemented | Implemented | User/report filters | Implemented | Implemented; title-only keyword search |
 | Create ads | Implemented | Implemented | Not applicable | Implemented | Implemented |
 | Edit/delete own ads | Implemented | No owner UI | Not applicable | Implemented | Partial client parity |
-| Image upload | Partial | Implemented | Not applicable | Implemented | Partial security/storage behavior |
+| Image upload | Owner authorization, content validation, limits, and coordinated local cleanup implemented | Implemented | Not applicable | Implemented | Implemented locally; direct static URL and durable-storage gaps remain |
 | Favorites | Implemented; add/list enforce public visibility | Implemented | Not applicable | Implemented | Implemented |
 | Reports | Implemented | Implemented | Review/resolve | Implemented | Partial error/audit behavior |
 | User moderation | Implemented | Not applicable | Implemented | Not applicable | Implemented with token-status limitation |
@@ -34,3 +34,5 @@ Status meanings:
 Public advertisement list/detail and non-owner favorites visibility are enforced by the backend: only `ACTIVE` records with no expiration or a future `expiredAt` are exposed. Restricted favorite rows remain stored but are omitted from responses. Owner and moderation queries remain separate and may include non-public statuses.
 
 At the latest documentation review, backend unit tests, backend build, public web build, admin web build, and the package-local mobile TypeScript check passed. Live PostgreSQL integration, browser end-to-end behavior, container deployment, and physical-device workflows require separate environment verification.
+
+Image upload/delete uses owner-only generic endpoints. Non-owners, including staff, do not receive an override; any future staff image-removal workflow requires a separate attributed moderation endpoint. Upload validation checks JPEG/PNG/WEBP content, MIME, and extension before UUID-named local files are persisted. Local filesystem and database failures use compensating cleanup, but public static URLs are not status-aware and the database has no single-main-image constraint.
