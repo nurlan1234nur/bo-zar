@@ -1,22 +1,23 @@
 import { Type } from "class-transformer";
-import { IsEmail, IsInt, IsOptional, IsString, IsUrl, Length } from "class-validator";
+import { IsDefined, IsEmail, IsInt, IsOptional, IsString, IsUrl, Length, ValidateIf } from "class-validator";
 
 export class UpdateProfileDto {
-  @IsOptional()
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsDefined()
   @IsString()
   @Length(2, 150)
   fullName?: string;
 
   @IsOptional()
   @IsEmail()
-  email?: string;
+  email?: string | null;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  locationId?: number;
+  locationId?: number | null;
 
   @IsOptional()
   @IsUrl()
-  profileImage?: string;
+  profileImage?: string | null;
 }

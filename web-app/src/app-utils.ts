@@ -1,3 +1,5 @@
+import { ApiClientError } from "@bozar/api-client";
+
 export type AuthSessionLike = {
   token: string;
   user: unknown;
@@ -18,30 +20,50 @@ export function hasImage(imageUrl?: string) {
 }
 
 export function getApiErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error) {
-    const message = error.message.trim();
-    const match = message.match(/^API request failed:\s*\d+\s*(.*)$/s);
-    if (match?.[1]?.trim()) {
-      return match[1].trim();
-    }
-    if (message) {
-      return message;
-    }
-  }
-
+  if (error instanceof ApiClientError && error.code === "PROFILE_VALIDATION_FAILED") return "Профайлын мэдээллээ шалгаад дахин оролдоно уу.";
+  if (error instanceof ApiClientError && error.status === 403) return "Энэ үйлдлийг хийх эрх хүрэхгүй байна.";
+  if (error instanceof ApiClientError && error.status === 429) return "Хэт олон хүсэлт илгээсэн байна. Түр хүлээгээд дахин оролдоно уу.";
   return fallback;
 }
 
 export function resolveImageUrlValue(imageUrl: string, apiAssetOrigin: string) {
-  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://") || imageUrl.startsWith("data:") || imageUrl.startsWith("blob:")) {
-    return imageUrl;
+  const normalized = imageUrl.trim();
+  if (!normalized) return "";
+
+  const isBackendRelative = normalized.startsWith("uploads/") || normalized.startsWith("/uploads/");
+  if (isBackendRelative) {
+    const path = normalized.split(/[?#]/, 1)[0];
+    const hasTraversalSegment = path.split("/").some((segment) => {
+      let decoded = segment;
+      for (let pass = 0; pass < 3; pass += 1) {
+        try {
+          const next = decodeURIComponent(decoded);
+          if (next === decoded) break;
+          decoded = next;
+        } catch {
+          return true;
+        }
+      }
+      return decoded.split(/[\\/]/).some((part) => part === "." || part === "..");
+    });
+    if (hasTraversalSegment) return "";
+
+    try {
+      const expectedOrigin = new URL(apiAssetOrigin).origin;
+      const canonical = new URL(normalized.startsWith("/") ? normalized : `/${normalized}`, expectedOrigin);
+      if (canonical.origin !== expectedOrigin || !canonical.pathname.startsWith("/uploads/") || canonical.pathname === "/uploads/") return "";
+      return canonical.href;
+    } catch {
+      return "";
+    }
   }
 
-  if (imageUrl.startsWith("/")) {
-    return `${apiAssetOrigin}${imageUrl}`;
+  try {
+    const parsed = new URL(normalized);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? normalized : "";
+  } catch {
+    return "";
   }
-
-  return imageUrl;
 }
 
 export function readAuthResponse<T extends AuthSessionLike>(response: AuthResponseLike<T>): T {

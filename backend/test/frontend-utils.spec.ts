@@ -12,6 +12,7 @@ import {
   resolveImageUrlValue as resolveWebImageUrl,
 } from "../../web-app/src/app-utils";
 import { type AdminReport, type AdminUser, type PublicAdvertisement } from "../../packages/shared-types/src";
+import { ApiClientError } from "../../packages/api-client/src";
 
 describe("frontend utility logic", () => {
   it("formats prices and detects images consistently", () => {
@@ -28,8 +29,9 @@ describe("frontend utility logic", () => {
   });
 
   it("normalizes API error messages and auth responses", () => {
-    expect(getApiErrorMessage(new Error("API request failed: 401 Unauthorized"), "fallback")).toBe("Unauthorized");
-    expect(getApiErrorMessage(new Error("Plain error"), "fallback")).toBe("Plain error");
+    expect(getApiErrorMessage(new Error("API request failed: 401 Unauthorized secret-token"), "fallback")).toBe("fallback");
+    expect(getApiErrorMessage(new Error("Plain error Error at private.ts:1"), "fallback")).toBe("fallback");
+    expect(getApiErrorMessage(new ApiClientError(403), "fallback")).toBe("Энэ үйлдлийг хийх эрх хүрэхгүй байна.");
     expect(getApiErrorMessage("not an error", "fallback")).toBe("fallback");
 
     expect(readAuthResponse({ data: { token: "token", user: { userId: 1 } } })).toEqual({

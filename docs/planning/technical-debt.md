@@ -21,7 +21,8 @@
 - Category counts are not computed.
 - Keyword search covers title only and lacks full-text indexing.
 - Evaluate `system_event_logs` query patterns and add indexes through a new TypeORM migration if they are required; the table-creation migration does not create indexes.
-- Public web lacks complete profile, password, and owner ad-management workflows.
+- Public web now has profile update and all-status My Ads in an in-memory Account view. Password settings, browser routing/deep links, and owner edit/status/delete/image-management actions remain incomplete.
+- `UsersService.updateProfile` retains broad error translation, so some persistence failures may still be reported as `404`; narrowing that error handling is a separate backend task.
 - Mobile still contains many reusable literal styles.
 
 ## Testing and delivery

@@ -45,9 +45,9 @@ The archived Figma export is reference-only and is not part of the runtime works
 
 - Browse/search/filter/sort/detail ads
 - Register/login/logout and session restoration
-- Favorites, ad creation/image upload, and reports
+- Favorite add/remove toggles, ad creation/image upload, reports, and an authenticated Account view with profile update and all-status My Ads; a dedicated saved-advertisements view is still planned
 - Persistent light/dark theme
-- No complete profile/password/my-ads/edit/delete UI
+- Profile and My Ads are implemented; password settings and owner ad edit/status/delete remain absent
 
 ### Mobile
 

@@ -30,7 +30,9 @@
 
 - Logout does not revoke a server-side session.
 - Existing JWTs are not revalidated against a later user-status change.
-- Image upload and deletion currently lack owner checks.
+- Generic image upload and deletion require advertisement ownership. Non-owners, including administrators and moderators, receive `403`; staff image removal requires a future attributed moderation endpoint.
+
+Public-web users can view and update allowlisted fields on their own profile and list all of their advertisements, including hidden/deleted records. Phone, role, and status are read-only; advertisement management actions are not part of this workflow yet.
 - Staff action logs currently do not reliably identify the authenticated staff member.
 
 These limitations are tracked in [Technical debt](../planning/technical-debt.md).

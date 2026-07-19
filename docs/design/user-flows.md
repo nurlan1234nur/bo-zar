@@ -24,11 +24,19 @@
 3. Create the ad.
 4. Optionally upload images after creation.
 5. On mobile, open a current-user ad to edit or soft-delete it.
-6. Public web currently creates ads but does not provide the full owner-management UI.
+6. Public web Account shows the owner's advertisements in every status. Edit, status-change, delete, and existing-image management remain future work.
+
+## Public web account and profile
+
+1. A guest selecting Account is shown the login dialog.
+2. A restored session is verified with `GET /users/me` before owner data loads; an invalid session clears stored and rendered owner data.
+3. Account uses in-memory navigation and shows editable full name/email/location, read-only phone/role/status, and `GET /users/me/ads` across all statuses.
+4. A successful profile save synchronizes the server response into the form, session state, and local storage.
+5. Logout is an explicit Account action; Browse returns to the marketplace without ending the session.
 
 ## Favorites and reports
 
-- Authenticated users toggle favorites from cards/detail and load saved ads.
+- Authenticated public-web users toggle favorites from cards/detail. A dedicated saved-advertisements view is not implemented yet; the mobile client already exposes its favorites workflow.
 - Authenticated users submit a report from ad detail.
 - The backend treats repeated reports for the same user/ad pair idempotently.
 - Staff review reports in the admin panel, may hide the ad, and resolve the report.
