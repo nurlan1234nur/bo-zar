@@ -19,6 +19,18 @@ export interface User {
   status: UserStatus;
 }
 
+export interface UserProfile {
+  userId: number;
+  fullName: string;
+  phone: string;
+  email: string | null;
+  role: RoleName;
+  status: UserStatus;
+  locationId: number | null;
+  locationName: string | null;
+  profileImage: string | null;
+}
+
 export interface Advertisement {
   adId: number;
   title: string;

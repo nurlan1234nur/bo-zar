@@ -72,7 +72,10 @@ Authentication does not override advertisement visibility for favorites. Adding 
 - Ad updates accept the corresponding fields optionally.
 - Ad status must be a defined advertisement status.
 - Reports require an ad ID and defined reason; comment is optional.
-- Profile updates support name, email, location, and profile-image URL.
+- `GET /users/me` and successful `PUT /users/me` responses use one stable `UserProfile` shape: `userId`, `fullName`, `phone`, nullable `email`, `role`, `status`, nullable `locationId`, nullable `locationName`, and nullable `profileImage`.
+- For profile updates, an omitted field is preserved while `email: null`, `locationId: null`, or `profileImage: null` explicitly clears that value.
+- Profile updates support only name, email, location, and profile-image URL. Phone, role, and status are not accepted update fields.
+- `GET /users/me/ads` is the owner source and returns all advertisement statuses; public detail is not a substitute for this contract.
 
 Refer to DTO source for exact length and numeric bounds; duplicate validation tables should not be maintained here.
 
@@ -85,6 +88,7 @@ Refer to DTO source for exact length and numeric bounds; duplicate validation ta
 - Maximum images per advertisement: 8; each upload request is also limited to 8 files.
 - Maximum size per file: 5 MB
 - Accepted content: JPEG, PNG, and WEBP. Declared MIME type, filename extension, and detected magic bytes must agree; common JPEG aliases are normalized.
+- The public-web create form preflights the 8-file, 5-MB-per-file, and declared MIME limits before creating an advertisement. This is an early UX check only; the backend remains authoritative and performs content validation.
 - Storage: local filesystem using server-generated UUID filenames. Original filenames never become storage paths.
 - Validation and authorization complete before permanent files are written. Database writes use a transaction, and request-created files are removed when filesystem or database work fails.
 - Image deletion stages the physical file, deletes metadata transactionally, restores the file on database rollback, and selects the oldest remaining image (then lowest ID) as the replacement main image.

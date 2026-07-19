@@ -15,14 +15,14 @@ export class User {
   @Column({ length: 20, unique: true })
   phone!: string;
 
-  @Column({ length: 150, unique: true, nullable: true })
-  email?: string;
+  @Column({ type: "varchar", length: 150, unique: true, nullable: true })
+  email?: string | null;
 
   @Column({ name: "password_hash", length: 255 })
   passwordHash!: string;
 
-  @Column({ name: "profile_image", length: 500, nullable: true })
-  profileImage?: string;
+  @Column({ name: "profile_image", type: "varchar", length: 500, nullable: true })
+  profileImage?: string | null;
 
   @ManyToOne(() => Role, (role) => role.users, { eager: true })
   @JoinColumn({ name: "role_id" })
@@ -30,7 +30,7 @@ export class User {
 
   @ManyToOne(() => Location, (location) => location.users, { nullable: true })
   @JoinColumn({ name: "location_id" })
-  location?: Location;
+  location?: Location | null;
 
   @Column({ type: "enum", enum: UserStatus, default: UserStatus.ACTIVE })
   status!: UserStatus;

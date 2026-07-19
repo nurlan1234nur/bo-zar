@@ -1,4 +1,4 @@
-import { ApiClient, createAdsApi, createAuthApi, createImagesApi } from "../../packages/api-client/src/index";
+import { ApiClient, ApiClientError, createAdsApi, createAuthApi, createImagesApi } from "../../packages/api-client/src/index";
 import type { AdvertisementStatus, OwnerAdvertisement, PublicAdvertisement } from "../../packages/shared-types/src/index";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2 ? true : false;
@@ -47,6 +47,35 @@ describe("api client", () => {
     expect(headers.get("Authorization")).toBe("Bearer test-token");
   });
 
+  it("uses typed current-profile and owner-ad endpoints with authentication", async () => {
+    const client = new ApiClient({ baseUrl: "http://localhost:8080/api/v1", getToken: () => "test-token" });
+    const authApi = createAuthApi(client);
+
+    await authApi.me();
+    await authApi.updateMe({ fullName: "Updated Owner", email: "owner@example.com", locationId: 2 });
+    await authApi.myAds();
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "http://localhost:8080/api/v1/users/me",
+      "http://localhost:8080/api/v1/users/me",
+      "http://localhost:8080/api/v1/users/me/ads",
+    ]);
+    expect(fetchMock.mock.calls[1][1]).toEqual(expect.objectContaining({
+      method: "PUT",
+      body: JSON.stringify({ fullName: "Updated Owner", email: "owner@example.com", locationId: 2 }),
+    }));
+    for (const [, init] of fetchMock.mock.calls) expect((init.headers as Headers).get("Authorization")).toBe("Bearer test-token");
+  });
+
+  it("preserves explicit nullable profile clears in the request body", async () => {
+    const client = new ApiClient({ baseUrl: "http://localhost:8080/api/v1", getToken: () => "test-token" });
+    await createAuthApi(client).updateMe({ email: null, locationId: null });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8080/api/v1/users/me",
+      expect.objectContaining({ method: "PUT", body: JSON.stringify({ email: null, locationId: null }) }),
+    );
+  });
+
   it("uses documented ad endpoints and query strings", async () => {
     const client = new ApiClient({ baseUrl: "http://localhost:8080/api/v1" });
     const adsApi = createAdsApi(client);
@@ -65,6 +94,8 @@ describe("api client", () => {
   });
 
   it("does not set JSON content type for FormData uploads", async () => {
+    const uploadData = [{ imageId: 9, adId: 5, imageUrl: "/uploads/image.jpg", thumbnailUrl: "/uploads/image.jpg", isMain: true }];
+    fetchMock.mockResolvedValueOnce({ ok: true, json: jest.fn().mockResolvedValue({ success: true, data: uploadData }) });
     const client = new ApiClient({
       baseUrl: "http://localhost:8080/api/v1",
       getToken: () => "test-token",
@@ -73,7 +104,7 @@ describe("api client", () => {
     const form = new FormData();
     form.append("files", new Blob(["image"]), "image.jpg");
 
-    await imagesApi.upload(5, form);
+    const response = await imagesApi.upload(5, form);
 
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:8080/api/v1/ads/5/images",
@@ -86,16 +117,20 @@ describe("api client", () => {
     const headers = fetchMock.mock.calls[0][1].headers as Headers;
     expect(headers.has("Content-Type")).toBe(false);
     expect(headers.get("Authorization")).toBe("Bearer test-token");
+    expect(response.data).toEqual(uploadData);
   });
 
-  it("surfaces non-ok responses with response text", async () => {
+  it("surfaces only structured status and approved code for non-ok responses", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: false,
       status: 401,
-      text: jest.fn().mockResolvedValue("Unauthorized"),
+      json: jest.fn().mockResolvedValue({ code: "SESSION_EXPIRED", message: "secret-token Error at private.ts:1" }),
     });
     const client = new ApiClient({ baseUrl: "http://localhost:8080/api/v1" });
 
-    await expect(client.request("/users/me")).rejects.toThrow("API request failed: 401 Unauthorized");
+    const error = await client.request("/users/me").catch((reason: unknown) => reason) as ApiClientError;
+    expect(error).toBeInstanceOf(ApiClientError);
+    expect(error).toMatchObject({ status: 401, code: "SESSION_EXPIRED" });
+    expect(error.message).not.toMatch(/secret-token|private\.ts/);
   });
 });

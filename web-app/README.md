@@ -8,12 +8,20 @@ React Vite public marketplace web app.
 - Search and filters
 - Ad detail
 - Login/register
-- Create/edit ads for web users
-- Favorites and reports
+- Create advertisements
+- Favorite add/remove toggles and reports
+- Authenticated profile update and all-status My Ads
 
 ## API
 
 Uses the same NestJS backend as `mobile-app`.
+
+Account navigation is intentionally state-based (`browse` / `account`) and has no deep-linkable route. A dedicated saved-advertisements view, owner advertisement management, and password settings are planned separately; favorite toggles alone do not provide a Favorites view.
+
+## Checks
+
+- `corepack pnpm --dir web-app test`
+- `corepack pnpm --dir web-app build`
 
 Environment variable:
 

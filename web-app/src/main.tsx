@@ -1,27 +1,28 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { Bell, Flag, Heart, MapPin, Moon, Phone, Plus, Search, Sun, User, X } from "lucide-react";
-import { ApiClient, createAdsApi, createAuthApi, createCatalogApi, createFavoritesApi, createImagesApi, createReportsApi } from "@bozar/api-client";
+import { ApiClient, ApiClientError, createAdsApi, createAuthApi, createCatalogApi, createFavoritesApi, createImagesApi, createReportsApi, type UpdateProfileRequest } from "@bozar/api-client";
 import { themes, type ThemeName, type ThemeTokens } from "../../packages/design-tokens/src/index";
-import { type Category, type Location, type PublicAdvertisement } from "@bozar/shared-types";
+import { type Category, type Location, type OwnerAdvertisement, type PublicAdvertisement, type UserProfile } from "@bozar/shared-types";
 import { formatPrice, getApiErrorMessage, hasImage, readAuthResponse, resolveImageUrlValue } from "./app-utils";
+import { AccountView } from "./components/AccountView";
 import "./styles.css";
 
 type AuthSession = {
   token: string;
-  user: {
-    userId: number;
-    fullName: string;
-    phone: string;
-    email?: string;
-    role?: string;
-  };
+  user: Pick<UserProfile, "userId" | "fullName" | "phone"> & Partial<Omit<UserProfile, "userId" | "fullName" | "phone">>;
 };
 
 type AuthResponse = {
   data?: AuthSession;
   token?: string;
   user?: AuthSession["user"];
+};
+
+type SessionIdentity = {
+  generation: number;
+  token: string;
+  userId: number;
 };
 
 type CreateAdPayload = {
@@ -39,6 +40,25 @@ type PublicSubcategory = {
   categoryId: number;
   name: string;
 };
+
+const MAX_CREATE_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_CREATE_IMAGE_COUNT = 8;
+const SUPPORTED_CREATE_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/pjpeg", "image/png", "image/webp"]);
+
+function validateCreateImages(files: File[]) {
+  if (files.length > MAX_CREATE_IMAGE_COUNT) {
+    return [`Нэг зар дээр хамгийн ихдээ 8 зураг оруулах боломжтой. Та ${files.length} зураг сонгосон байна.`];
+  }
+  const oversized = files.filter((file) => file.size > MAX_CREATE_IMAGE_SIZE);
+  if (oversized.length > 0) {
+    return oversized.map((file) => `${file.name} файлын хэмжээ ${(file.size / 1024 / 1024).toFixed(1)} MB байна. Нэг зураг 5 MB-аас ихгүй байх ёстой.`);
+  }
+  const unsupported = files.find((file) => !SUPPORTED_CREATE_IMAGE_TYPES.has(file.type.toLowerCase()));
+  if (unsupported) {
+    return [`${unsupported.name} формат дэмжигдэхгүй. JPG, PNG эсвэл WEBP зураг сонгоно уу.`];
+  }
+  return [];
+}
 
 const SESSION_STORAGE_KEY = "bozar.web.session";
 const THEME_STORAGE_KEY = "bozar.web.theme";
@@ -102,7 +122,8 @@ function resolveImageUrl(imageUrl: string) {
   return resolveImageUrlValue(imageUrl, API_ASSET_ORIGIN);
 }
 
-function App() {
+export function App() {
+  const [activeView, setActiveView] = React.useState<"browse" | "account">("browse");
   const [ads, setAds] = React.useState<PublicAdvertisement[]>([]);
   const [categories, setCategories] = React.useState<Category[]>([]);
   const [locations, setLocations] = React.useState<Location[]>([]);
@@ -110,7 +131,7 @@ function App() {
   const [source, setSource] = React.useState<"api" | "offline">("offline");
   const [selectedAd, setSelectedAd] = React.useState<PublicAdvertisement | null>(null);
   const [favoriteIds, setFavoriteIds] = React.useState<Set<number>>(new Set());
-  const [session, setSession] = React.useState<AuthSession | null>(initialSession);
+  const [session, setSession] = React.useState<AuthSession | null>(null);
   const [sessionReady, setSessionReady] = React.useState(!initialSession);
   const [notice, setNotice] = React.useState("");
   const [showAuth, setShowAuth] = React.useState(false);
@@ -126,6 +147,15 @@ function App() {
   const [page, setPage] = React.useState(1);
   const [meta, setMeta] = React.useState({ page: 1, size: 12, total: 0, totalPages: 1 });
   const [loadingAds, setLoadingAds] = React.useState(false);
+  const [profile, setProfile] = React.useState<UserProfile | null>(null);
+  const [myAds, setMyAds] = React.useState<OwnerAdvertisement[]>([]);
+  const [ownerLoading, setOwnerLoading] = React.useState(false);
+  const [ownerError, setOwnerError] = React.useState("");
+  const [profileSaving, setProfileSaving] = React.useState(false);
+  const sessionRef = React.useRef<AuthSession | null>(initialSession);
+  const sessionGenerationRef = React.useRef(0);
+  const ownerRequestRef = React.useRef<SessionIdentity | null>(null);
+  const profileSaveRef = React.useRef<SessionIdentity | null>(null);
 
   React.useEffect(() => {
     applyThemeVariables(themes[themeName]);
@@ -183,8 +213,9 @@ function App() {
 
   React.useEffect(() => {
     let alive = true;
+    const identity = captureSessionIdentity();
 
-    if (!initialSession) {
+    if (!identity) {
       setSessionReady(true);
       return () => {
         alive = false;
@@ -193,24 +224,27 @@ function App() {
 
     authApi
       .me()
-      .then(() => {
-        if (!alive) return;
+      .then((response) => {
+        if (!alive || !isCurrentSession(identity)) return;
+        syncProfile(response.data, identity);
         setSessionReady(true);
       })
       .catch(() => {
-        if (!alive) return;
-        authToken = undefined;
-        window.localStorage.removeItem(SESSION_STORAGE_KEY);
-        setSession(null);
-        setFavoriteIds(new Set());
+        if (!alive || !isCurrentSession(identity)) return;
+        clearAuthenticatedState(false);
         setNotice("Хадгалсан session хүчингүй болсон байна");
-        setSessionReady(true);
       });
 
     return () => {
       alive = false;
     };
   }, []);
+
+  React.useEffect(() => {
+    if (!sessionReady || !session || activeView !== "account") return;
+    void loadOwnerData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView, sessionReady, session?.token]);
 
   React.useEffect(() => {
     let alive = true;
@@ -247,10 +281,17 @@ function App() {
       return;
     }
 
+    const identity = captureSessionIdentity();
+    if (!identity) return;
+
     favoritesApi
       .list()
-      .then((response) => setFavoriteIds(new Set(response.data.map((ad) => ad.adId))))
-      .catch(() => setNotice("Favorite татахад backend алдаа өглөө"));
+      .then((response) => {
+        if (isCurrentSession(identity)) setFavoriteIds(new Set(response.data.map((ad) => ad.adId)));
+      })
+      .catch(() => {
+        if (isCurrentSession(identity)) setNotice("Favorite татахад backend алдаа өглөө");
+      });
   }, [session, sessionReady]);
 
   function requireLogin() {
@@ -260,20 +301,134 @@ function App() {
     return false;
   }
 
-  async function handleAuth(nextSession: AuthSession) {
+  function captureSessionIdentity(): SessionIdentity | null {
+    const current = sessionRef.current;
+    if (!current) return null;
+    return { generation: sessionGenerationRef.current, token: current.token, userId: current.user.userId };
+  }
+
+  function isCurrentSession(identity: SessionIdentity) {
+    const current = sessionRef.current;
+    return Boolean(current && sessionGenerationRef.current === identity.generation && current.token === identity.token && current.user.userId === identity.userId);
+  }
+
+  function installSession(nextSession: AuthSession) {
+    sessionGenerationRef.current += 1;
+    sessionRef.current = nextSession;
     authToken = nextSession.token;
     window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextSession));
     setSession(nextSession);
+    ownerRequestRef.current = null;
+    profileSaveRef.current = null;
+    setOwnerLoading(false);
+    setProfileSaving(false);
+    setSessionReady(true);
+  }
+
+  async function handleAuth(nextSession: AuthSession) {
+    installSession(nextSession);
+    setProfile(null);
+    setMyAds([]);
+    setOwnerError("");
     setShowAuth(false);
     setNotice("Амжилттай нэвтэрлээ");
   }
 
-  function logout() {
+  function clearAuthenticatedState(showLogoutNotice = true) {
+    sessionGenerationRef.current += 1;
+    sessionRef.current = null;
     authToken = undefined;
     window.localStorage.removeItem(SESSION_STORAGE_KEY);
     setSession(null);
+    setProfile(null);
+    setMyAds([]);
+    setOwnerError("");
+    setOwnerLoading(false);
+    setProfileSaving(false);
+    ownerRequestRef.current = null;
+    profileSaveRef.current = null;
     setFavoriteIds(new Set());
-    setNotice("Гарлаа");
+    setActiveView("browse");
+    setSessionReady(true);
+    if (showLogoutNotice) setNotice("Гарлаа");
+  }
+
+  function logout() {
+    openAccount();
+  }
+
+  function performLogout() {
+    clearAuthenticatedState();
+    void authApi.logout().catch(() => undefined);
+  }
+
+  function syncProfile(nextProfile: UserProfile, identity: SessionIdentity) {
+    if (!isCurrentSession(identity)) return false;
+    const current = sessionRef.current;
+    if (!current) return false;
+    const nextSession: AuthSession = { ...current, user: nextProfile };
+    sessionRef.current = nextSession;
+    window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+    setProfile((current) => isCurrentSession(identity) ? nextProfile : current);
+    setSession((rendered) => isCurrentSession(identity) ? nextSession : rendered);
+    return true;
+  }
+
+  async function loadOwnerData() {
+    const identity = captureSessionIdentity();
+    if (!sessionReady || !identity || ownerRequestRef.current && isCurrentSession(ownerRequestRef.current)) return;
+    ownerRequestRef.current = identity;
+    setOwnerLoading(true);
+    setOwnerError("");
+    try {
+      const [profileResponse, adsResponse] = await Promise.all([authApi.me(), authApi.myAds()]);
+      if (!isCurrentSession(identity) || ownerRequestRef.current !== identity) return;
+      syncProfile(profileResponse.data, identity);
+      setMyAds(adsResponse.data);
+    } catch (error) {
+      if (!isCurrentSession(identity) || ownerRequestRef.current !== identity) return;
+      if (error instanceof ApiClientError && error.status === 401) {
+        clearAuthenticatedState(false);
+        setShowAuth(true);
+        setNotice("Session дууссан байна. Дахин нэвтэрнэ үү.");
+        return;
+      }
+      setOwnerError(getApiErrorMessage(error, "Профайл болон заруудыг ачаалж чадсангүй."));
+    } finally {
+      if (isCurrentSession(identity) && ownerRequestRef.current === identity) {
+        ownerRequestRef.current = null;
+        setOwnerLoading(false);
+      }
+    }
+  }
+
+  async function saveProfile(payload: UpdateProfileRequest) {
+    const identity = captureSessionIdentity();
+    if (!identity || profileSaveRef.current && isCurrentSession(profileSaveRef.current)) return;
+    profileSaveRef.current = identity;
+    setProfileSaving(true);
+    try {
+      const response = await authApi.updateMe(payload);
+      if (!isCurrentSession(identity) || profileSaveRef.current !== identity) return;
+      syncProfile(response.data, identity);
+      setNotice("Профайл хадгалагдлаа");
+    } catch (error) {
+      if (!isCurrentSession(identity) || profileSaveRef.current !== identity) return;
+      throw new Error(getApiErrorMessage(error, "Профайл хадгалах үед алдаа гарлаа."));
+    } finally {
+      if (isCurrentSession(identity) && profileSaveRef.current === identity) {
+        profileSaveRef.current = null;
+        setProfileSaving(false);
+      }
+    }
+  }
+
+  function openAccount() {
+    if (!session) {
+      setShowAuth(true);
+      return;
+    }
+    setActiveView("account");
   }
 
   async function toggleFavorite(adId: number) {
@@ -319,7 +474,6 @@ function App() {
       const response = await adsApi.create(payload);
       const data = response.data;
       const createdId = data?.adId ?? Date.now();
-      const selectedImagePreview = files[0] ? URL.createObjectURL(files[0]) : undefined;
       const fallback: PublicAdvertisement = {
         adId: createdId,
         title: payload.title,
@@ -332,25 +486,31 @@ function App() {
         locationName: locations.find((location) => location.locationId === payload.locationId)?.name ?? "Байршилгүй",
         sellerName: session?.user.fullName ?? "Хэрэглэгч",
         contactPhone: payload.contactPhone,
-        imageUrl: selectedImagePreview ?? "",
+        imageUrl: "",
         viewCount: 0,
         createdAt: new Date().toISOString(),
       };
       const nextAd: PublicAdvertisement = { ...fallback, ...data, status: "ACTIVE" };
       if (files.length > 0 && data?.adId) {
         try {
-          const uploadResponse = (await imagesApi.upload(data.adId, files)) as { data?: Array<{ imageUrl: string }> };
+          const uploadResponse = await imagesApi.upload(data.adId, files);
           const uploadedImageUrl = uploadResponse.data?.[0]?.imageUrl;
-          if (uploadedImageUrl) {
-            nextAd.imageUrl = uploadedImageUrl;
-          }
-        } catch {
-          // Keep the created ad even if the image upload fails.
+          if (!uploadedImageUrl) throw new Error("Image upload response did not include an image URL");
+          nextAd.imageUrl = uploadedImageUrl;
+          setNotice("Зар болон зураг амжилттай нэмэгдлээ");
+        } catch (error) {
+          nextAd.imageUrl = "";
+          setNotice(error instanceof ApiClientError && error.status === 413
+            ? "Зар нэмэгдсэн боловч зураг 5 MB-ын хязгаараас хэтэрсэн тул upload хийгдээгүй."
+            : "Зар нэмэгдсэн боловч зураг upload амжилтгүй боллоо");
         }
+      } else if (files.length === 0) {
+        setNotice("Зар амжилттай нэмэгдлээ");
+      } else {
+        setNotice("Зар нэмэгдсэн боловч зураг upload амжилтгүй боллоо");
       }
       setAds((current) => [nextAd, ...current]);
       setShowCreate(false);
-      setNotice("Зар нэмэгдлээ");
     } catch {
       setNotice("Зар нэмэхэд алдаа гарлаа");
     }
@@ -366,19 +526,19 @@ function App() {
           <span>Дайвар</span>
         </nav>
         <div className="top-actions">
-          <button type="button" onClick={() => setThemeName((current) => (current === "light" ? "dark" : "light"))} title="Сэдэв">
+          <button className="theme-button" type="button" onClick={() => setThemeName((current) => (current === "light" ? "dark" : "light"))} title="Сэдэв">
             {themeName === "light" ? <Moon size={18} /> : <Sun size={18} />}
           </button>
           {session ? (
-            <button type="button" onClick={logout} title="Гарах">
-              <User size={18} /> {session.user.fullName}
+            <button className="account-button" type="button" onClick={openAccount} title="Бүртгэл">
+              <User size={18} /> <span className="account-button-label" title={session.user.fullName}>{session.user.fullName}</span>
             </button>
           ) : (
-            <button type="button" onClick={() => setShowAuth(true)} title="Нэвтрэх">
+            <button className="account-button" type="button" onClick={() => setShowAuth(true)} title="Нэвтрэх">
               <User size={18} />
             </button>
           )}
-          <button type="button" title="Мэдэгдэл">
+          <button className="notification-button" type="button" title="Мэдэгдэл">
             <Bell size={18} />
           </button>
           <button type="button" className="post-button" onClick={() => (session ? setShowCreate(true) : setShowAuth(true))}>
@@ -387,6 +547,28 @@ function App() {
         </div>
       </header>
 
+      {activeView === "account" && session && profile ? (
+        <AccountView
+          profile={profile}
+          locations={locations}
+          ads={myAds}
+          loading={ownerLoading}
+          error={ownerError}
+          saving={profileSaving}
+          resolveImageUrl={resolveImageUrl}
+          onBack={() => setActiveView("browse")}
+          onRetry={() => void loadOwnerData()}
+          onSaveProfile={saveProfile}
+          onLogout={performLogout}
+        />
+      ) : activeView === "account" && session ? (
+        <main className="account-view account-loading" aria-busy={!ownerError}>
+          {ownerError ? <div className="account-panel owner-state owner-error" role="alert">
+            <strong>Профайлыг ачаалж чадсангүй.</strong><span>{ownerError}</span>
+            <div className="account-error-actions"><button type="button" onClick={() => setActiveView("browse")}>Зар үзэх</button><button type="button" onClick={() => void loadOwnerData()}>Дахин оролдох</button><button type="button" onClick={performLogout}>Гарах</button></div>
+          </div> : <div className="account-loading-card" />}
+        </main>
+      ) : (
       <main>
         <section className="hero">
           <span className="eyebrow">Маркетплейс</span>
@@ -462,6 +644,7 @@ function App() {
           </div>
         </section>
       </main>
+      )}
 
       {selectedAd && (
         <DetailPanel ad={selectedAd} favorite={favoriteIds.has(selectedAd.adId)} onClose={() => setSelectedAd(null)} onFavorite={toggleFavorite} onReport={reportAd} />
@@ -635,6 +818,7 @@ function CreateAdDialog({
   const [locationId, setLocationId] = React.useState(locations[0]?.locationId ?? 1);
   const [contactPhone, setContactPhone] = React.useState(defaultPhone);
   const [files, setFiles] = React.useState<File[]>([]);
+  const [fileErrors, setFileErrors] = React.useState<string[]>([]);
   const [subcategoryOptions, setSubcategoryOptions] = React.useState<PublicSubcategory[]>([]);
 
   React.useEffect(() => {
@@ -659,6 +843,12 @@ function CreateAdDialog({
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (fileErrors.length > 0) return;
+    const validationErrors = validateCreateImages(files);
+    if (validationErrors.length > 0) {
+      setFileErrors(validationErrors);
+      return;
+    }
     onCreate(
       {
         title,
@@ -671,6 +861,18 @@ function CreateAdDialog({
       },
       files,
     );
+  }
+
+  function selectFiles(event: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(event.target.files ?? []);
+    const validationErrors = validateCreateImages(selected);
+    setFileErrors(validationErrors);
+    if (validationErrors.length > 0) {
+      setFiles([]);
+      event.target.value = "";
+      return;
+    }
+    setFiles(selected);
   }
 
   return (
@@ -742,9 +944,12 @@ function CreateAdDialog({
         </label>
         <label>
           Зураг
-          <input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []).slice(0, 8))} />
+          <input type="file" accept="image/png,image/jpeg,image/jpg,image/pjpeg,image/webp" multiple onChange={selectFiles} aria-invalid={fileErrors.length > 0} aria-describedby={`create-image-help${fileErrors.length > 0 ? " create-image-error" : ""}`} />
         </label>
-        <div className="upload-placeholder">{files.length > 0 ? `${files.length} зураг сонгогдсон` : "PNG, JPG, WEBP зураг 8 хүртэл сонгоно"}</div>
+        <div id="create-image-help" className="upload-placeholder">{files.length > 0 ? `${files.length} зураг сонгогдсон` : "JPEG, PNG, WEBP · зураг бүр 5 MB хүртэл · нийт 8 хүртэл"}</div>
+        {fileErrors.length > 0 && <div id="create-image-error" className="form-error" role="alert">
+          {fileErrors.length === 1 ? <p>{fileErrors[0]}</p> : <ul>{fileErrors.map((message) => <li key={message}>{message}</li>)}</ul>}
+        </div>}
         <button className="primary-wide" type="submit">
           Нийтлэх
         </button>
@@ -752,6 +957,8 @@ function CreateAdDialog({
     </div>
   );
 }
+
+export { MAX_CREATE_IMAGE_COUNT, MAX_CREATE_IMAGE_SIZE, validateCreateImages };
 
 function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   React.useEffect(() => {
@@ -762,4 +969,5 @@ function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   return <div className="toast">{message}</div>;
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+const rootElement = document.getElementById("root");
+if (rootElement) createRoot(rootElement).render(<App />);

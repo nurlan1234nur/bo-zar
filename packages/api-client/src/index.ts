@@ -10,11 +10,19 @@ import type {
   OwnerAdvertisement,
   PaginatedAds,
   PublicAdvertisement,
+  UserProfile,
 } from "@bozar/shared-types";
 
 export interface ApiClientOptions {
   baseUrl: string;
   getToken?: () => string | undefined;
+}
+
+export class ApiClientError extends Error {
+  constructor(public readonly status: number, public readonly code?: string) {
+    super(`API request failed with status ${status}`);
+    this.name = "ApiClientError";
+  }
 }
 
 export class ApiClient {
@@ -38,13 +46,15 @@ export class ApiClient {
     });
 
     if (!response.ok) {
-      let details = "";
+      let code: string | undefined;
       try {
-        details = await response.text();
+        const body = await response.json() as { code?: unknown; error?: { code?: unknown } };
+        const candidate = body.code ?? body.error?.code;
+        if (typeof candidate === "string" && /^[A-Z0-9_]{1,64}$/.test(candidate)) code = candidate;
       } catch {
-        details = "";
+        code = undefined;
       }
-      throw new Error(`API request failed: ${response.status}${details ? ` ${details}` : ""}`);
+      throw new ApiClientError(response.status, code);
     }
 
     return response.json() as Promise<T>;
@@ -61,6 +71,13 @@ export interface RegisterRequest {
 export interface LoginRequest {
   identifier: string;
   password: string;
+}
+
+export interface UpdateProfileRequest {
+  fullName?: string;
+  email?: string | null;
+  locationId?: number | null;
+  profileImage?: string | null;
 }
 
 export function createAuthApi(client: ApiClient) {
@@ -99,10 +116,10 @@ export function createAuthApi(client: ApiClient) {
       });
     },
     me() {
-      return client.request("/users/me");
+      return client.request<ApiResponse<UserProfile>>("/users/me");
     },
-    updateMe(payload: { fullName?: string; email?: string; locationId?: number; profileImage?: string }) {
-      return client.request("/users/me", {
+    updateMe(payload: UpdateProfileRequest) {
+      return client.request<ApiResponse<UserProfile>>("/users/me", {
         method: "PUT",
         body: JSON.stringify(payload),
       });
@@ -272,7 +289,7 @@ export function createImagesApi(client: ApiClient) {
           body.append("files", file);
         }
       }
-      return client.request(`/ads/${adId}/images`, {
+      return client.request<ApiResponse<ImageUploadResult[]>>(`/ads/${adId}/images`, {
         method: "POST",
         body,
       });
@@ -281,4 +298,12 @@ export function createImagesApi(client: ApiClient) {
       return client.request(`/images/${imageId}`, { method: "DELETE" });
     },
   };
+}
+
+export interface ImageUploadResult {
+  imageId: number;
+  adId: number;
+  imageUrl: string;
+  thumbnailUrl: string;
+  isMain: boolean;
 }
