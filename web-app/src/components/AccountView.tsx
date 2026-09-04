@@ -5,7 +5,6 @@ import { MyAdsList } from "./MyAdsList";
 import { ProfileForm } from "./ProfileForm";
 import { PasswordForm } from "./PasswordForm";
 
-////
 export function AccountView({ profile, locations, ads, loading, error, saving, passwordSaving, busyAdId, resolveImageUrl, onBack, onRetry, onSaveProfile, onChangePassword, onEditAd, onStatusChange, onDeleteAd, onLogout }: {
   profile: UserProfile;
   locations: Location[];
