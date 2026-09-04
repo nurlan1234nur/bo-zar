@@ -1,6 +1,6 @@
 import type { AdvertisementStatus, OwnerAdvertisement } from "@bozar/shared-types";
 import React from "react";
-import { Image as ImageIcon, MapPin, RefreshCw } from "lucide-react";
+import { Image as ImageIcon, MapPin, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { formatPrice, hasImage } from "../app-utils";
 
 const statusPresentation: Record<AdvertisementStatus, { label: string; className: string }> = {
@@ -35,12 +35,16 @@ function OwnerAdImage({ imageUrl, title, resolveImageUrl }: {
   </div>;
 }
 
-export function MyAdsList({ ads, loading, error, resolveImageUrl, onRetry }: {
+export function MyAdsList({ ads, loading, error, busyAdId = null, resolveImageUrl, onRetry, onEdit = () => undefined, onStatusChange = () => undefined, onDelete = () => undefined }: {
   ads: OwnerAdvertisement[];
   loading: boolean;
   error: string;
+  busyAdId?: number | null;
   resolveImageUrl: (url: string) => string;
   onRetry: () => void;
+  onEdit?: (ad: OwnerAdvertisement) => void;
+  onStatusChange?: (ad: OwnerAdvertisement, status: "ACTIVE" | "SOLD" | "INACTIVE") => void;
+  onDelete?: (ad: OwnerAdvertisement) => void;
 }) {
   return (
     <section className="account-panel my-ads-panel" aria-labelledby="my-ads-title" aria-busy={loading}>
@@ -55,7 +59,15 @@ export function MyAdsList({ ads, loading, error, resolveImageUrl, onRetry }: {
         const status = presentStatus(ad.status);
         return <article className="owner-ad-card" key={ad.adId}>
           <OwnerAdImage imageUrl={ad.imageUrl} title={ad.title} resolveImageUrl={resolveImageUrl} />
-          <div className="owner-ad-copy"><div className="owner-ad-title-row"><h3 title={ad.title}>{ad.title}</h3><span className={`status-badge ${status.className}`} aria-label={`Зарын төлөв: ${status.label}`}>{status.label}</span></div><strong className="owner-ad-price">{formatPrice(ad.price)}</strong><span className="meta owner-ad-location" title={ad.locationName}><MapPin size={14} /> {ad.locationName}</span></div>
+          <div className="owner-ad-copy"><div className="owner-ad-title-row"><h3 title={ad.title}>{ad.title}</h3><span className={`status-badge ${status.className}`} aria-label={`Зарын төлөв: ${status.label}`}>{status.label}</span></div><strong className="owner-ad-price">{formatPrice(ad.price)}</strong><span className="meta owner-ad-location" title={ad.locationName}><MapPin size={14} /> {ad.locationName}</span>
+            {ad.status !== "DELETED" && ad.status !== "HIDDEN" && <div className="owner-ad-actions">
+              <button type="button" disabled={busyAdId === ad.adId} onClick={() => onEdit(ad)}><Pencil size={15} /> Засах</button>
+              <select aria-label={`${ad.title} төлөв`} value={ad.status === "EXPIRED" ? "INACTIVE" : ad.status} disabled={busyAdId === ad.adId} onChange={(event) => onStatusChange(ad, event.target.value as "ACTIVE" | "SOLD" | "INACTIVE")}>
+                <option value="ACTIVE">Идэвхтэй</option><option value="SOLD">Зарагдсан</option><option value="INACTIVE">Идэвхгүй</option>
+              </select>
+              <button className="owner-delete-action" type="button" disabled={busyAdId === ad.adId} onClick={() => onDelete(ad)}><Trash2 size={15} /> Устгах</button>
+            </div>}
+          </div>
         </article>;
       })}</div>}
     </section>

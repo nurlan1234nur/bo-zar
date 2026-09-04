@@ -22,14 +22,14 @@
 
 - Public routes accept requests without a bearer token.
 - Public registration always creates a `USER`; it does not expose public staff-role selection.
-- Protected user routes require a valid, unexpired JWT.
-- Admin routes require a JWT plus an `ADMIN` or `MODERATOR` role claim.
+- Protected user routes require a valid, unexpired JWT whose subject still maps to an `ACTIVE` database user.
+- Admin routes require a valid JWT plus a current database role of `ADMIN` or `MODERATOR`.
 - Ownership checks protect normal ad update, status, and delete operations.
 
 ## Current limitations
 
 - Logout does not revoke a server-side session.
-- Existing JWTs are not revalidated against a later user-status change.
+- JWT validation reloads the current user status, phone, and role on every protected request. Missing, blocked, or suspended users are rejected even when the presented token is otherwise valid and unexpired.
 - Generic image upload and deletion require advertisement ownership. Non-owners, including administrators and moderators, receive `403`; staff image removal requires a future attributed moderation endpoint.
 
 Public-web users can view and update allowlisted fields on their own profile and list all of their advertisements, including hidden/deleted records. Phone, role, and status are read-only; advertisement management actions are not part of this workflow yet.

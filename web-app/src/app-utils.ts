@@ -1,5 +1,30 @@
 import { ApiClientError } from "@bozar/api-client";
 
+export type AdSort = "newest" | "oldest" | "mostViewed" | "priceAsc" | "priceDesc";
+export type BrowseFilters = { keyword: string; categoryId: number; subcategoryId: number; locationId: number; sort: AdSort; minPrice: string; maxPrice: string; page: number };
+const allowedSorts = new Set<AdSort>(["newest", "oldest", "mostViewed", "priceAsc", "priceDesc"]);
+function positiveInt(value: string | null, fallback = 0) { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback; }
+function priceValue(value: string | null) { return value !== null && /^\d+(?:\.\d{1,2})?$/.test(value) ? value : ""; }
+
+export function parseBrowseFilters(search: string): BrowseFilters {
+  const query = new URLSearchParams(search);
+  const sort = query.get("sort") as AdSort | null;
+  return { keyword: (query.get("keyword") ?? "").trim().slice(0, 200), categoryId: positiveInt(query.get("categoryId")), subcategoryId: positiveInt(query.get("subcategoryId")), locationId: positiveInt(query.get("locationId")), sort: sort && allowedSorts.has(sort) ? sort : "newest", minPrice: priceValue(query.get("minPrice")), maxPrice: priceValue(query.get("maxPrice")), page: positiveInt(query.get("page"), 1) };
+}
+
+export function serializeBrowseFilters(filters: BrowseFilters) {
+  const query = new URLSearchParams();
+  if (filters.keyword.trim()) query.set("keyword", filters.keyword.trim());
+  if (filters.categoryId) query.set("categoryId", String(filters.categoryId));
+  if (filters.subcategoryId) query.set("subcategoryId", String(filters.subcategoryId));
+  if (filters.locationId) query.set("locationId", String(filters.locationId));
+  if (filters.minPrice) query.set("minPrice", filters.minPrice);
+  if (filters.maxPrice) query.set("maxPrice", filters.maxPrice);
+  if (filters.sort !== "newest") query.set("sort", filters.sort);
+  if (filters.page > 1) query.set("page", String(filters.page));
+  return query.toString();
+}
+
 export type AuthSessionLike = {
   token: string;
   user: unknown;

@@ -41,6 +41,22 @@ describe("MyAdsList", () => {
     expect(screen.getByText("Unknown")).toHaveClass("status-unknown");
   });
 
+  it("exposes edit, status, and delete actions only for manageable ads", () => {
+    const onEdit = vi.fn();
+    const onStatusChange = vi.fn();
+    const onDelete = vi.fn();
+    render(<MyAdsList {...baseProps} ads={[ad("ACTIVE", 1), ad("DELETED", 2)]} loading={false} error="" onEdit={onEdit} onStatusChange={onStatusChange} onDelete={onDelete} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Засах/ }));
+    fireEvent.change(screen.getByRole("combobox", { name: "ACTIVE ad төлөв" }), { target: { value: "SOLD" } });
+    fireEvent.click(screen.getByRole("button", { name: /Устгах/ }));
+
+    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ adId: 1 }));
+    expect(onStatusChange).toHaveBeenCalledWith(expect.objectContaining({ adId: 1 }), "SOLD");
+    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ adId: 1 }));
+    expect(screen.getAllByRole("button", { name: /Засах/ })).toHaveLength(1);
+  });
+
   it("provides non-overflowing long-content hooks and full-value titles", () => {
     const longTitle = "Very long advertisement title ".repeat(10);
     const longLocation = "Very long location ".repeat(10);

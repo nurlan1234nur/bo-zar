@@ -15,17 +15,20 @@ Admin Web  ─┘
 ## Бүтэц
 
 - `backend/` — NestJS, TypeORM, PostgreSQL API
-- `web-app/` — React/Vite хэрэглэгчийн веб
+- `web-app/` — React/Vite public marketplace
 - `admin-web/` — moderation болон admin интерфэйс
 - `mobile-app/` — Expo/React Native client
-- `packages/` — shared types, API client, design tokens
+- `packages/shared-types/` — shared contract
+- `packages/api-client/` — shared REST client
+- `packages/design-tokens/` — нэгдсэн дизайн утгууд
 
 ## Гол боломжууд
 
 - Бүртгэл, нэвтрэлт, profile
 - Зар харах, хайх, шүүх, эрэмбэлэх
 - Зар үүсгэх, засах, төлөв өөрчлөх, soft-delete
-- Зураг upload, favorites, report
+- Зураг upload
+- Favorites болон report
 - Category, хэрэглэгч, зарын moderation
 
 ## Миний оролцоо
@@ -34,6 +37,7 @@ Admin Web  ─┘
 
 ## Баримт бичиг
 
+- [Төслийн дэлгэрэнгүй](PROJECT_OVERVIEW.md)
 - [Feature төлөв](docs/product/feature-status.md)
 - [Системийн бүтэц](docs/architecture/system-overview.md)
 - [Локал хөгжүүлэлт](docs/operations/local-development.md)
@@ -50,3 +54,4 @@ corepack pnpm --dir admin-web build
 ```
 
 Бодит `.env`, credential, token, log, upload болон хэрэглэгчийн хувийн мэдээллийг repository-д commit хийхгүй.
+

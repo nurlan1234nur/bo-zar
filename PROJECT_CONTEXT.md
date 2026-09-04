@@ -43,11 +43,12 @@ The archived Figma export is reference-only and is not part of the runtime works
 
 ### Public web
 
-- Browse/search/filter/sort/detail ads
+- Browse/search/filter/sort/detail ads with shareable URL query state
+- Responsive indigo/amber marketplace UI with shared semantic tokens, modern search/filter surfaces, category navigation, listing cards, and coordinated account/system states
 - Register/login/logout and session restoration
-- Favorite add/remove toggles, ad creation/image upload, reports, and an authenticated Account view with profile update and all-status My Ads; a dedicated saved-advertisements view is still planned
+- Favorite add/remove toggles and a dedicated saved-advertisements view, ad creation/image upload, reports, and an authenticated Account view with profile update and all-status My Ads
 - Persistent light/dark theme
-- Profile and My Ads are implemented; password settings and owner ad edit/status/delete remain absent
+- Profile, password change, My Ads, and owner ad edit/status/soft-delete actions are implemented; password reset UI remains absent
 
 ### Mobile
 
@@ -75,12 +76,10 @@ The archived Figma export is reference-only and is not part of the runtime works
 
 - Uploaded image URLs are served directly from public `/uploads` paths without advertisement-status checks; local filesystem storage also lacks a durable multi-instance strategy.
 - PostgreSQL does not enforce a single-main-image constraint, and process crashes can still leave image orphans outside the normal compensating-cleanup path.
-- User status changes do not invalidate existing JWTs.
 - Password reset is not a production delivery/session design.
 - Several services suppress persistence errors and return empty/synthetic/success-shaped data.
 - Admin audit/reviewer attribution is incomplete.
 - View counts and category counts are not maintained.
-- Keyword search matches title only.
 - Client E2E, live-database integration, and migration tests are absent.
 - The reviewed Windows environment required a package-local mobile typecheck command; the checked-in GitHub Actions invocation still needs verification on a clean Linux runner. CI failure is not confirmed. See [mobile typecheck troubleshooting](docs/operations/troubleshooting.md#mobile-typecheck-command-fails).
 - Full Docker Compose deployment is incomplete because frontend Dockerfiles and nginx configuration are absent.
@@ -95,6 +94,7 @@ At the latest review:
 - Public web production build passed.
 - Admin web production build passed.
 - Package-local mobile TypeScript check passed.
+- Workspace lint passes for backend, public web, and admin web; the mobile package still reports lint as pending.
 
 Live PostgreSQL integration, GitHub Actions on a clean Linux runner, browser E2E behavior, containers, and Expo simulators or physical devices were not part of that baseline.
 

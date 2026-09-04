@@ -6,11 +6,9 @@ import { Category } from "../categories/entities/category.entity";
 import { SubCategory } from "../categories/entities/subcategory.entity";
 import { AdvertisementStatus, ReportReason, ReportStatus, RoleName, UserStatus } from "../common/enums";
 import { publicAds, publicAdminReports, publicCategories, publicLocations, publicSubcategories } from "../common/public-catalog";
-import { Favorite } from "../favorites/entities/favorite.entity";
 import { Image } from "../images/entities/image.entity";
 import { Location } from "../locations/entities/location.entity";
 import { Report } from "../reports/entities/report.entity";
-import { AdminActionLog } from "../admin/entities/admin-action-log.entity";
 import { Role } from "../users/entities/role.entity";
 import { User } from "../users/entities/user.entity";
 

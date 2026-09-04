@@ -3,23 +3,30 @@ import type { UpdateProfileRequest } from "@bozar/api-client";
 import { ArrowLeft, LogOut } from "lucide-react";
 import { MyAdsList } from "./MyAdsList";
 import { ProfileForm } from "./ProfileForm";
+import { PasswordForm } from "./PasswordForm";
 
-export function AccountView({ profile, locations, ads, loading, error, saving, resolveImageUrl, onBack, onRetry, onSaveProfile, onLogout }: {
+export function AccountView({ profile, locations, ads, loading, error, saving, passwordSaving, busyAdId, resolveImageUrl, onBack, onRetry, onSaveProfile, onChangePassword, onEditAd, onStatusChange, onDeleteAd, onLogout }: {
   profile: UserProfile;
   locations: Location[];
   ads: OwnerAdvertisement[];
   loading: boolean;
   error: string;
   saving: boolean;
+  passwordSaving: boolean;
+  busyAdId: number | null;
   resolveImageUrl: (url: string) => string;
   onBack: () => void;
   onRetry: () => void;
   onSaveProfile: (payload: UpdateProfileRequest) => Promise<void>;
+  onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  onEditAd: (ad: OwnerAdvertisement) => void;
+  onStatusChange: (ad: OwnerAdvertisement, status: "ACTIVE" | "SOLD" | "INACTIVE") => void;
+  onDeleteAd: (ad: OwnerAdvertisement) => void;
   onLogout: () => void;
 }) {
   return <main className="account-view">
     <div className="account-toolbar"><div><span className="eyebrow">Хувийн хэсэг</span><h1>Миний бүртгэл</h1></div><div className="account-toolbar-actions"><button type="button" className="secondary-action" onClick={onBack}><ArrowLeft size={17} /> Зар үзэх</button><button type="button" className="secondary-action logout-action" onClick={onLogout}><LogOut size={17} /> Гарах</button></div></div>
     <header className="account-hero"><div className="account-avatar" aria-hidden="true">{profile.fullName.slice(0, 1).toUpperCase()}</div><div className="account-hero-copy"><span className="eyebrow">Бүртгэлтэй хэрэглэгч</span><h2 title={profile.fullName}>{profile.fullName}</h2><p title={profile.locationName ?? "Байршил сонгоогүй"}>{profile.locationName ?? "Байршил сонгоогүй"}</p><div className="account-summary-chips"><span>{profile.phone}</span><span>{profile.role}</span><span>{profile.status}</span></div></div></header>
-    <div className="account-layout"><ProfileForm profile={profile} locations={locations} saving={saving} onSave={onSaveProfile} /><MyAdsList ads={ads} loading={loading} error={error} resolveImageUrl={resolveImageUrl} onRetry={onRetry} /></div>
+    <div className="account-layout"><div className="account-settings-column"><ProfileForm profile={profile} locations={locations} saving={saving} onSave={onSaveProfile} /><PasswordForm saving={passwordSaving} onSave={onChangePassword} /></div><MyAdsList ads={ads} loading={loading} error={error} busyAdId={busyAdId} resolveImageUrl={resolveImageUrl} onRetry={onRetry} onEdit={onEditAd} onStatusChange={onStatusChange} onDelete={onDeleteAd} /></div>
   </main>;
 }

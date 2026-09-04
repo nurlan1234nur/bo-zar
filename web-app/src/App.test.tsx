@@ -2,8 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
-  me: vi.fn(), updateMe: vi.fn(), myAds: vi.fn(), logout: vi.fn(), login: vi.fn(), register: vi.fn(),
-  listAds: vi.fn(), createAd: vi.fn(), upload: vi.fn(), categories: vi.fn(), locations: vi.fn(), favorites: vi.fn(),
+  me: vi.fn(), updateMe: vi.fn(), changePassword: vi.fn(), myAds: vi.fn(), logout: vi.fn(), login: vi.fn(), register: vi.fn(),
+  listAds: vi.fn(), createAd: vi.fn(), upload: vi.fn(), categories: vi.fn(), locations: vi.fn(), subcategories: vi.fn(), favorites: vi.fn(), favoriteAdd: vi.fn(), favoriteRemove: vi.fn(),
 }));
 
 class MockApiClientError extends Error {
@@ -15,10 +15,10 @@ class MockApiClientError extends Error {
 vi.mock("@bozar/api-client", () => ({
   ApiClient: class { constructor() {} },
   ApiClientError: MockApiClientError,
-  createAuthApi: () => ({ me: api.me, updateMe: api.updateMe, myAds: api.myAds, logout: api.logout, login: api.login, register: api.register }),
+  createAuthApi: () => ({ me: api.me, updateMe: api.updateMe, changePassword: api.changePassword, myAds: api.myAds, logout: api.logout, login: api.login, register: api.register }),
   createAdsApi: () => ({ list: api.listAds, create: api.createAd, detail: vi.fn() }),
-  createCatalogApi: () => ({ categories: api.categories, locations: api.locations, subcategories: vi.fn().mockResolvedValue({ data: { items: [] } }) }),
-  createFavoritesApi: () => ({ list: api.favorites, add: vi.fn(), remove: vi.fn() }),
+  createCatalogApi: () => ({ categories: api.categories, locations: api.locations, subcategories: api.subcategories }),
+  createFavoritesApi: () => ({ list: api.favorites, add: api.favoriteAdd, remove: api.favoriteRemove }),
   createImagesApi: () => ({ upload: api.upload }),
   createReportsApi: () => ({ create: vi.fn() }),
 }));
@@ -96,14 +96,19 @@ function sizedImage(name: string, size: number, type = "image/jpeg") {
 describe("public web account workflow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState(null, "", "/");
     api.me.mockResolvedValue({ data: serverProfile });
     api.myAds.mockResolvedValue({ data: [] });
     api.logout.mockResolvedValue({ data: undefined });
     api.listAds.mockResolvedValue({ data: { items: [], meta: { page: 1, size: 12, total: 0, totalPages: 1 } } });
     api.categories.mockResolvedValue({ data: [] });
     api.locations.mockResolvedValue({ data: [{ locationId: 1, name: "Ulaanbaatar", type: "city" }] });
+    api.subcategories.mockResolvedValue({ data: { categoryId: 1, items: [] } });
     api.favorites.mockResolvedValue({ data: [] });
+    api.favoriteAdd.mockResolvedValue({ data: { adId: 1, favorited: true } });
+    api.favoriteRemove.mockResolvedValue({ data: { adId: 1, favorited: false } });
     api.createAd.mockResolvedValue({ data: { adId: 55 } });
+    api.changePassword.mockResolvedValue({ data: { changed: true } });
     api.upload.mockResolvedValue({ data: [{ imageId: 5, adId: 55, imageUrl: "/uploads/server.jpg", thumbnailUrl: "/uploads/server.jpg", isMain: true }] });
   });
 
@@ -131,6 +136,105 @@ describe("public web account workflow", () => {
     fireEvent.click(screen.getByText("Server Owner"));
     expect(await screen.findByRole("heading", { name: "Миний зарууд" })).toBeInTheDocument();
     expect(api.myAds).toHaveBeenCalledOnce();
+    expect(window.location.pathname).toBe("/account");
+  });
+
+  it("opens protected deep links after restoring a valid session", async () => {
+    api.favorites.mockResolvedValue({ data: [publicAd(12, "Deep linked favorite")] });
+    window.history.replaceState(null, "", "/favorites");
+    await renderApp(storedSession);
+    expect(await screen.findByRole("heading", { name: "Хадгалсан зарууд" })).toBeInTheDocument();
+    expect(await screen.findByText("Deep linked favorite")).toBeInTheDocument();
+  });
+
+  it("responds to browser history navigation", async () => {
+    await renderApp(storedSession);
+    fireEvent.click(await screen.findByText("Server Owner"));
+    await screen.findByRole("heading", { name: "Миний зарууд" });
+    window.history.pushState(null, "", "/");
+    fireEvent.popState(window);
+    expect(await screen.findByRole("heading", { name: /Ойр байгаа зар/ })).toBeInTheDocument();
+  });
+
+  it("redirects a guest protected deep link to login", async () => {
+    window.history.replaceState(null, "", "/account");
+    await renderApp();
+    expect(await screen.findByRole("heading", { name: "Нэвтрэх" })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("renders a recoverable 404 for an unknown path", async () => {
+    window.history.replaceState(null, "", "/missing-page");
+    await renderApp();
+    expect(await screen.findByText("404")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Нүүр хуудас/ }));
+    expect(window.location.pathname).toBe("/");
+    expect(await screen.findByRole("heading", { name: /Ойр байгаа зар/ })).toBeInTheDocument();
+  });
+
+  it("restores browse filters from the URL and keeps applied filters shareable", async () => {
+    window.history.replaceState(null, "", "/?keyword=phone&locationId=1&minPrice=100&sort=priceAsc&page=2");
+    await renderApp();
+    await waitFor(() => expect(api.listAds).toHaveBeenCalledWith(expect.stringContaining("keyword=phone")));
+    expect(screen.getByLabelText("Зар хайх")).toHaveValue("phone");
+    expect(screen.getByLabelText("Байршил")).toHaveValue("1");
+    expect(screen.getByLabelText("Доод үнэ")).toHaveValue(100);
+    expect(screen.getByLabelText("Эрэмбэлэх")).toHaveValue("priceAsc");
+
+    fireEvent.change(screen.getByLabelText("Зар хайх"), { target: { value: "laptop" } });
+    fireEvent.change(screen.getByLabelText("Дээд үнэ"), { target: { value: "900" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Зар хайх, шүүх" }));
+    await waitFor(() => expect(window.location.search).toContain("keyword=laptop"));
+    expect(window.location.search).toContain("maxPrice=900");
+    expect(window.location.search).not.toContain("page=2");
+  });
+
+  it("toggles the compact mobile filter controls accessibly", async () => {
+    await renderApp();
+    const toggle = document.querySelector<HTMLButtonElement>(".mobile-filter-toggle");
+    expect(toggle).not.toBeNull();
+    if (!toggle) throw new Error("Mobile filter toggle was not rendered");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(document.getElementById("browse-filter-controls")).toHaveClass("is-open");
+  });
+
+  it("loads subcategories for a selected category and validates price range", async () => {
+    api.categories.mockResolvedValue({ data: [{ categoryId: 3, name: "Electronics", icon: "tag", description: "", count: 2 }] });
+    api.subcategories.mockResolvedValue({ data: { categoryId: 3, items: [{ subcategoryId: 4, categoryId: 3, name: "Phones" }] } });
+    await renderApp();
+    fireEvent.click(await screen.findByRole("button", { name: /Electronics/ }));
+    await waitFor(() => expect(api.subcategories).toHaveBeenCalledWith(3));
+    expect(await screen.findByRole("option", { name: "Phones" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Доод үнэ"), { target: { value: "1000" } });
+    fireEvent.change(screen.getByLabelText("Дээд үнэ"), { target: { value: "100" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Зар хайх, шүүх" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Доод үнэ дээд үнээс их");
+  });
+
+  it("ignores a stale advertisement response after filters change", async () => {
+    const oldRequest = deferred<{ data: { items: Array<ReturnType<typeof publicAd>>; meta: { page: number; size: number; total: number; totalPages: number } } }>();
+    api.listAds.mockImplementationOnce(() => oldRequest.promise).mockResolvedValueOnce({ data: { items: [publicAd(2, "Newest filtered result")], meta: { page: 1, size: 12, total: 1, totalPages: 1 } } });
+    await renderApp();
+    fireEvent.change(screen.getByLabelText("Зар хайх"), { target: { value: "new" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Зар хайх, шүүх" }));
+    expect(await screen.findByText("Newest filtered result")).toBeInTheDocument();
+    await resolveDeferred(oldRequest, { data: { items: [publicAd(1, "Stale unfiltered result")], meta: { page: 1, size: 12, total: 1, totalPages: 1 } } });
+    expect(screen.getByText("Newest filtered result")).toBeInTheDocument();
+    expect(screen.queryByText("Stale unfiltered result")).not.toBeInTheDocument();
+  });
+
+  it("changes password from Account without exposing the entered values", async () => {
+    await renderApp(storedSession);
+    fireEvent.click(await screen.findByText("Server Owner"));
+    fireEvent.change(await screen.findByLabelText("Одоогийн нууц үг"), { target: { value: "password123" } });
+    fireEvent.change(screen.getByLabelText("Шинэ нууц үг"), { target: { value: "new-password123" } });
+    fireEvent.change(screen.getByLabelText("Шинэ нууц үг давтах"), { target: { value: "new-password123" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Нууц үг солих" }));
+    await waitFor(() => expect(api.changePassword).toHaveBeenCalledWith({ currentPassword: "password123", newPassword: "new-password123" }));
+    expect(await screen.findByText("Нууц үг амжилттай солигдлоо.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Одоогийн нууц үг")).toHaveValue("");
   });
 
   it("clears an invalid stored session without requesting owner data", async () => {
@@ -315,6 +419,29 @@ describe("public web account workflow", () => {
     expect(newFavoriteButton).toHaveClass("is-favorite");
     expect(screen.queryByText("Favorite татахад backend алдаа өглөө")).not.toBeInTheDocument();
     expect(screen.queryByText(/secret-token|private\.ts/i)).not.toBeInTheDocument();
+  });
+
+  it("opens a dedicated saved advertisements view and removes an item", async () => {
+    const saved = publicAd(41, "Saved marketplace item");
+    api.favorites.mockResolvedValue({ data: [saved] });
+    await renderApp(storedSession);
+    await screen.findByText("Server Owner");
+    await waitFor(() => expect(screen.getByTitle("Хадгалсан зарууд")).toHaveTextContent("1"));
+
+    fireEvent.click(screen.getByTitle("Хадгалсан зарууд"));
+    expect(await screen.findByRole("heading", { name: "Хадгалсан зарууд" })).toBeInTheDocument();
+    expect(screen.getByText("Saved marketplace item")).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("Хадгалснаас хасах"));
+
+    await waitFor(() => expect(api.favoriteRemove).toHaveBeenCalledWith(41));
+    expect(screen.queryByText("Saved marketplace item")).not.toBeInTheDocument();
+    expect(screen.getByText("Хадгалсан зар алга.")).toBeInTheDocument();
+  });
+
+  it("requires login before opening saved advertisements", async () => {
+    await renderApp();
+    fireEvent.click(screen.getByTitle("Хадгалсан зарууд"));
+    expect(await screen.findByRole("heading", { name: "Нэвтрэх" })).toBeInTheDocument();
   });
 
   it("reports truthful create success when no image is selected", async () => {

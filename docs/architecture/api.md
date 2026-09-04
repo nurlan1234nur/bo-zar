@@ -4,8 +4,10 @@ The NestJS API uses the `/api/v1` prefix. Current controllers, DTOs, guards, and
 
 ## Conventions
 
+- Admin moderation and catalog mutations return `404` when their target does not exist. Database read/write failures are not converted into empty or success-shaped responses.
+
 - Public routes require no JWT.
-- User routes require a valid bearer JWT.
+- User routes require a valid bearer JWT and an `ACTIVE` current database user. JWT validation reloads the user status and role on every protected request, so blocking or suspending a user immediately rejects previously issued tokens.
 - Admin routes require an `ADMIN` or `MODERATOR` role.
 - Successful application responses generally use `{ success, message, data }`.
 - Nest's standard exception responses are currently used for errors; there is no global error-envelope filter.
@@ -59,7 +61,7 @@ The NestJS API uses the `/api/v1` prefix. Current controllers, DTOs, guards, and
 
 ## Ad queries
 
-`GET /ads` accepts `page`, `size`, `keyword`, `categoryId`, `subcategoryId`, `locationId`, `minPrice`, `maxPrice`, and `sort`. Page size is bounded by the service. Sort values are `newest`, `oldest`, `mostViewed`, `priceAsc`, and `priceDesc`. Keyword matching currently searches title only.
+`GET /ads` accepts `page`, `size`, `keyword`, `categoryId`, `subcategoryId`, `locationId`, `minPrice`, `maxPrice`, and `sort`. Page size is bounded by the service. Sort values are `newest`, `oldest`, `mostViewed`, `priceAsc`, and `priceDesc`. Keyword matching searches both title and description while preserving public-visibility and other filter predicates on both search branches.
 
 Public list and detail access is restricted server-side to advertisements with `ACTIVE` status whose `expiredAt` is either null or later than the request time. A caller-supplied `status` query does not override this rule. Public detail returns 404 for missing, non-`ACTIVE`, or time-expired records without revealing that a restricted record exists. Owner and admin workflows use separate authenticated queries.
 
@@ -75,6 +77,7 @@ Authentication does not override advertisement visibility for favorites. Adding 
 - `GET /users/me` and successful `PUT /users/me` responses use one stable `UserProfile` shape: `userId`, `fullName`, `phone`, nullable `email`, `role`, `status`, nullable `locationId`, nullable `locationName`, and nullable `profileImage`.
 - For profile updates, an omitted field is preserved while `email: null`, `locationId: null`, or `profileImage: null` explicitly clears that value.
 - Profile updates support only name, email, location, and profile-image URL. Phone, role, and status are not accepted update fields.
+- Current-profile endpoints return `404` only when the user is missing. Profile and owner-ad persistence failures propagate as server errors rather than being translated into missing/empty responses.
 - `GET /users/me/ads` is the owner source and returns all advertisement statuses; public detail is not a substitute for this contract.
 
 Refer to DTO source for exact length and numeric bounds; duplicate validation tables should not be maintained here.

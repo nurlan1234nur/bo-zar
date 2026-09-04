@@ -299,30 +299,6 @@ function App() {
     }
   }
 
-  async function createCategory() {
-    if (!session) {
-      setNotice("Эхлээд admin эрхээр нэвтэрнэ үү");
-      return;
-    }
-    if (!categoryName.trim()) {
-      setNotice("Category нэр оруулна уу");
-      return;
-    }
-    try {
-      await adminApi.createCategory({
-        name: categoryName.trim(),
-        icon: categoryIcon.trim() || "tag",
-        description: categoryDescription.trim() || undefined,
-      });
-      setCategoryName("");
-      setCategoryDescription("");
-      setNotice("Category үүсгэлээ");
-      await refreshAdminData();
-    } catch {
-      setNotice("Category үүсгэх амжилтгүй");
-    }
-  }
-
   function beginCategoryEdit(category: Category) {
     setCategoryEditId(category.categoryId);
     setCategoryName(category.name);

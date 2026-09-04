@@ -63,6 +63,7 @@ Seed data is for development. Never document its credentials or run production s
 ## Verification commands
 
 ```powershell
+corepack pnpm lint
 corepack pnpm --dir backend test -- --runInBand
 corepack pnpm --dir backend build
 corepack pnpm --dir web-app build

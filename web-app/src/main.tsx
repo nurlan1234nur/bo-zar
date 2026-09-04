@@ -1,11 +1,14 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { Bell, Flag, Heart, MapPin, Moon, Phone, Plus, Search, Sun, User, X } from "lucide-react";
+import { Bell, Flag, Heart, MapPin, Moon, Phone, Plus, RotateCcw, Search, SlidersHorizontal, Sun, User, X } from "lucide-react";
 import { ApiClient, ApiClientError, createAdsApi, createAuthApi, createCatalogApi, createFavoritesApi, createImagesApi, createReportsApi, type UpdateProfileRequest } from "@bozar/api-client";
 import { themes, type ThemeName, type ThemeTokens } from "../../packages/design-tokens/src/index";
 import { type Category, type Location, type OwnerAdvertisement, type PublicAdvertisement, type UserProfile } from "@bozar/shared-types";
-import { formatPrice, getApiErrorMessage, hasImage, readAuthResponse, resolveImageUrlValue } from "./app-utils";
+import { formatPrice, getApiErrorMessage, hasImage, parseBrowseFilters, readAuthResponse, resolveImageUrlValue, serializeBrowseFilters, type AdSort, type BrowseFilters } from "./app-utils";
 import { AccountView } from "./components/AccountView";
+import { EditAdDialog, type EditAdPayload } from "./components/EditAdDialog";
+import { SavedAdsView } from "./components/SavedAdsView";
+import { NotFoundView } from "./components/NotFoundView";
 import "./styles.css";
 
 type AuthSession = {
@@ -76,7 +79,8 @@ function readStoredSession(): AuthSession | null {
 }
 
 const initialSession = readStoredSession();
-const initialTheme = (window.localStorage.getItem(THEME_STORAGE_KEY) as ThemeName | null) ?? "light";
+const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+const initialTheme: ThemeName = storedTheme === "dark" ? "dark" : "light";
 let authToken: string | undefined = initialSession?.token;
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 const API_ASSET_ORIGIN = new URL(API_BASE_URL).origin;
@@ -122,48 +126,101 @@ function resolveImageUrl(imageUrl: string) {
   return resolveImageUrlValue(imageUrl, API_ASSET_ORIGIN);
 }
 
+type AppView = "browse" | "account" | "favorites";
+type RouteView = AppView | "notFound";
+const viewPaths: Record<AppView, string> = { browse: "/", account: "/account", favorites: "/favorites" };
+function viewFromPath(pathname: string): RouteView { return pathname === "/" ? "browse" : pathname === "/account" ? "account" : pathname === "/favorites" ? "favorites" : "notFound"; }
+const initialBrowseFilters = parseBrowseFilters(window.location.search);
+
 export function App() {
-  const [activeView, setActiveView] = React.useState<"browse" | "account">("browse");
+  const [activeView, setActiveView] = React.useState<RouteView>(() => viewFromPath(window.location.pathname));
   const [ads, setAds] = React.useState<PublicAdvertisement[]>([]);
   const [categories, setCategories] = React.useState<Category[]>([]);
   const [locations, setLocations] = React.useState<Location[]>([]);
   const [subcategories, setSubcategories] = React.useState<PublicSubcategory[]>([]);
+  const [subcategoriesLoading, setSubcategoriesLoading] = React.useState(false);
   const [source, setSource] = React.useState<"api" | "offline">("offline");
   const [selectedAd, setSelectedAd] = React.useState<PublicAdvertisement | null>(null);
   const [favoriteIds, setFavoriteIds] = React.useState<Set<number>>(new Set());
+  const [favoriteAds, setFavoriteAds] = React.useState<PublicAdvertisement[]>([]);
+  const [favoritesLoading, setFavoritesLoading] = React.useState(false);
+  const [favoritesError, setFavoritesError] = React.useState("");
   const [session, setSession] = React.useState<AuthSession | null>(null);
   const [sessionReady, setSessionReady] = React.useState(!initialSession);
   const [notice, setNotice] = React.useState("");
   const [showAuth, setShowAuth] = React.useState(false);
   const [showCreate, setShowCreate] = React.useState(false);
   const [themeName, setThemeName] = React.useState<ThemeName>(initialTheme);
-  const [keyword, setKeyword] = React.useState("");
-  const [selectedCategoryId, setSelectedCategoryId] = React.useState<number>(0);
-  const [selectedSubcategoryId, setSelectedSubcategoryId] = React.useState<number>(0);
-  const [selectedLocationId, setSelectedLocationId] = React.useState<number>(0);
-  const [sort, setSort] = React.useState<"newest" | "oldest" | "mostViewed" | "priceAsc" | "priceDesc">("newest");
-  const [minPrice, setMinPrice] = React.useState("");
-  const [maxPrice, setMaxPrice] = React.useState("");
-  const [page, setPage] = React.useState(1);
+  const [keyword, setKeyword] = React.useState(initialBrowseFilters.keyword);
+  const [keywordDraft, setKeywordDraft] = React.useState(initialBrowseFilters.keyword);
+  const [selectedCategoryId, setSelectedCategoryId] = React.useState(initialBrowseFilters.categoryId);
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = React.useState(initialBrowseFilters.subcategoryId);
+  const [selectedLocationId, setSelectedLocationId] = React.useState(initialBrowseFilters.locationId);
+  const [sort, setSort] = React.useState<AdSort>(initialBrowseFilters.sort);
+  const [minPrice, setMinPrice] = React.useState(initialBrowseFilters.minPrice);
+  const [maxPrice, setMaxPrice] = React.useState(initialBrowseFilters.maxPrice);
+  const [minPriceDraft, setMinPriceDraft] = React.useState(initialBrowseFilters.minPrice);
+  const [maxPriceDraft, setMaxPriceDraft] = React.useState(initialBrowseFilters.maxPrice);
+  const [filterError, setFilterError] = React.useState("");
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
+  const [page, setPage] = React.useState(initialBrowseFilters.page);
   const [meta, setMeta] = React.useState({ page: 1, size: 12, total: 0, totalPages: 1 });
   const [loadingAds, setLoadingAds] = React.useState(false);
+  const [adsError, setAdsError] = React.useState("");
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [myAds, setMyAds] = React.useState<OwnerAdvertisement[]>([]);
   const [ownerLoading, setOwnerLoading] = React.useState(false);
   const [ownerError, setOwnerError] = React.useState("");
   const [profileSaving, setProfileSaving] = React.useState(false);
+  const [passwordSaving, setPasswordSaving] = React.useState(false);
+  const [editingAd, setEditingAd] = React.useState<OwnerAdvertisement | null>(null);
+  const [busyAdId, setBusyAdId] = React.useState<number | null>(null);
   const sessionRef = React.useRef<AuthSession | null>(initialSession);
   const sessionGenerationRef = React.useRef(0);
   const ownerRequestRef = React.useRef<SessionIdentity | null>(null);
   const profileSaveRef = React.useRef<SessionIdentity | null>(null);
+  const adsRequestRef = React.useRef(0);
 
   React.useEffect(() => {
     applyThemeVariables(themes[themeName]);
     window.localStorage.setItem(THEME_STORAGE_KEY, themeName);
   }, [themeName]);
 
+  React.useEffect(() => {
+    const handlePopState = () => {
+      setActiveView(viewFromPath(window.location.pathname));
+      const filters = parseBrowseFilters(window.location.search);
+      setKeyword(filters.keyword); setKeywordDraft(filters.keyword); setSelectedCategoryId(filters.categoryId); setSelectedSubcategoryId(filters.subcategoryId); setSelectedLocationId(filters.locationId); setSort(filters.sort); setMinPrice(filters.minPrice); setMaxPrice(filters.maxPrice); setMinPriceDraft(filters.minPrice); setMaxPriceDraft(filters.maxPrice); setFilterError(""); setPage(filters.page);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  React.useEffect(() => {
+    if (!sessionReady || session || (activeView !== "account" && activeView !== "favorites")) return;
+    setShowAuth(true);
+    setActiveView("browse");
+    window.history.replaceState(null, "", viewPaths.browse);
+  }, [activeView, session, sessionReady]);
+
+  React.useEffect(() => {
+    if (activeView !== "browse") return;
+    const filters: BrowseFilters = { keyword, categoryId: selectedCategoryId, subcategoryId: selectedSubcategoryId, locationId: selectedLocationId, sort, minPrice, maxPrice, page };
+    const query = serializeBrowseFilters(filters);
+    const nextUrl = query ? `/?${query}` : "/";
+    if (`${window.location.pathname}${window.location.search}` !== nextUrl) window.history.replaceState(null, "", nextUrl);
+  }, [activeView, keyword, selectedCategoryId, selectedSubcategoryId, selectedLocationId, sort, minPrice, maxPrice, page]);
+
+  function navigate(view: AppView, replace = false) {
+    setActiveView(view);
+    const path = viewPaths[view];
+    if (window.location.pathname !== path) window.history[replace ? "replaceState" : "pushState"](null, "", path);
+  }
+
   async function loadAds() {
+    const requestId = ++adsRequestRef.current;
     setLoadingAds(true);
+    setAdsError("");
 
     const params = new URLSearchParams();
     params.set("page", String(page));
@@ -179,14 +236,17 @@ export function App() {
 
     try {
       const response = await adsApi.list(`?${params.toString()}`);
+      if (requestId !== adsRequestRef.current) return;
       setAds(response.data.items);
       setMeta(response.data.meta);
       setSource("api");
     } catch {
+      if (requestId !== adsRequestRef.current) return;
       setSource("offline");
+      setAdsError("Зарын мэдээллийг татаж чадсангүй.");
       setNotice("Зарын өгөгдөл татахад алдаа гарлаа");
     } finally {
-      setLoadingAds(false);
+      if (requestId === adsRequestRef.current) setLoadingAds(false);
     }
   }
 
@@ -243,55 +303,51 @@ export function App() {
   React.useEffect(() => {
     if (!sessionReady || !session || activeView !== "account") return;
     void loadOwnerData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView, sessionReady, session?.token]);
 
   React.useEffect(() => {
     let alive = true;
-
-    if (!selectedCategoryId) {
-      setSubcategories([]);
-      return undefined;
-    }
-
-    catalogApi
-      .subcategories(selectedCategoryId)
-      .then((response) => {
-        if (!alive) return;
-        setSubcategories((response.data.items as PublicSubcategory[]) ?? []);
-      })
-      .catch(() => {
-        if (!alive) return;
-        setSubcategories([]);
-      });
-
-    return () => {
-      alive = false;
-    };
+    if (!selectedCategoryId) { setSubcategories([]); setSubcategoriesLoading(false); return undefined; }
+    setSubcategoriesLoading(true);
+    catalogApi.subcategories(selectedCategoryId).then((response) => {
+      if (alive) setSubcategories(response.data.items ?? []);
+    }).catch(() => { if (alive) setSubcategories([]); }).finally(() => { if (alive) setSubcategoriesLoading(false); });
+    return () => { alive = false; };
   }, [selectedCategoryId]);
 
   React.useEffect(() => {
     void loadAds();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keyword, selectedCategoryId, selectedSubcategoryId, selectedLocationId, sort, minPrice, maxPrice, page]);
 
   React.useEffect(() => {
     if (!sessionReady || !session) {
       setFavoriteIds(new Set());
+      setFavoriteAds([]);
+      setFavoritesLoading(false);
+      setFavoritesError("");
       return;
     }
 
     const identity = captureSessionIdentity();
     if (!identity) return;
 
+    setFavoritesLoading(true);
+    setFavoritesError("");
     favoritesApi
       .list()
       .then((response) => {
-        if (isCurrentSession(identity)) setFavoriteIds(new Set(response.data.map((ad) => ad.adId)));
+        if (isCurrentSession(identity)) {
+          setFavoriteAds(response.data);
+          setFavoriteIds(new Set(response.data.map((ad) => ad.adId)));
+        }
       })
       .catch(() => {
-        if (isCurrentSession(identity)) setNotice("Favorite татахад backend алдаа өглөө");
-      });
+        if (isCurrentSession(identity)) {
+          setFavoritesError("Хадгалсан заруудыг татах үед алдаа гарлаа.");
+          setNotice("Favorite татахад backend алдаа өглөө");
+        }
+      })
+      .finally(() => { if (isCurrentSession(identity)) setFavoritesLoading(false); });
   }, [session, sessionReady]);
 
   function requireLogin() {
@@ -322,6 +378,7 @@ export function App() {
     profileSaveRef.current = null;
     setOwnerLoading(false);
     setProfileSaving(false);
+    setPasswordSaving(false);
     setSessionReady(true);
   }
 
@@ -345,16 +402,16 @@ export function App() {
     setOwnerError("");
     setOwnerLoading(false);
     setProfileSaving(false);
+    setPasswordSaving(false);
     ownerRequestRef.current = null;
     profileSaveRef.current = null;
     setFavoriteIds(new Set());
-    setActiveView("browse");
+    setFavoriteAds([]);
+    setFavoritesError("");
+    setFavoritesLoading(false);
+    navigate("browse", true);
     setSessionReady(true);
     if (showLogoutNotice) setNotice("Гарлаа");
-  }
-
-  function logout() {
-    openAccount();
   }
 
   function performLogout() {
@@ -423,12 +480,98 @@ export function App() {
     }
   }
 
+  async function changePassword(currentPassword: string, newPassword: string) {
+    const identity = captureSessionIdentity();
+    if (!identity || passwordSaving) return;
+    setPasswordSaving(true);
+    try {
+      await authApi.changePassword({ currentPassword, newPassword });
+      if (isCurrentSession(identity)) setNotice("Нууц үг амжилттай солигдлоо");
+    } catch (error) {
+      if (!isCurrentSession(identity)) return;
+      const fallback = error instanceof ApiClientError && error.status === 401 ? "Одоогийн нууц үг буруу байна." : "Нууц үг солих үед алдаа гарлаа.";
+      throw new Error(getApiErrorMessage(error, fallback));
+    } finally {
+      if (isCurrentSession(identity)) setPasswordSaving(false);
+    }
+  }
+
   function openAccount() {
     if (!session) {
       setShowAuth(true);
       return;
     }
-    setActiveView("account");
+    navigate("account");
+  }
+
+  function openFavorites() {
+    if (!requireLogin()) return;
+    navigate("favorites");
+  }
+
+  async function reloadFavorites() {
+    const identity = captureSessionIdentity();
+    if (!identity) return;
+    setFavoritesLoading(true); setFavoritesError("");
+    try {
+      const response = await favoritesApi.list();
+      if (!isCurrentSession(identity)) return;
+      setFavoriteAds(response.data);
+      setFavoriteIds(new Set(response.data.map((ad) => ad.adId)));
+    } catch (error) {
+      if (isCurrentSession(identity)) setFavoritesError(getApiErrorMessage(error, "Хадгалсан заруудыг татах үед алдаа гарлаа."));
+    } finally {
+      if (isCurrentSession(identity)) setFavoritesLoading(false);
+    }
+  }
+
+  async function updateOwnerAd(payload: EditAdPayload) {
+    if (!editingAd) return;
+    const adId = editingAd.adId;
+    setBusyAdId(adId);
+    try {
+      const response = await adsApi.update(adId, payload);
+      setMyAds((current) => current.map((ad) => ad.adId === adId ? { ...ad, ...response.data } : ad));
+      setEditingAd(null);
+      setNotice("Зар амжилттай шинэчлэгдлээ");
+      void loadAds();
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, "Зар хадгалах үед алдаа гарлаа."));
+    } finally {
+      setBusyAdId(null);
+    }
+  }
+
+  async function changeOwnerAdStatus(ad: OwnerAdvertisement, status: "ACTIVE" | "SOLD" | "INACTIVE") {
+    const previous = ad.status;
+    setBusyAdId(ad.adId);
+    setMyAds((current) => current.map((item) => item.adId === ad.adId ? { ...item, status } : item));
+    try {
+      await adsApi.updateStatus(ad.adId, status);
+      setNotice("Зарын төлөв шинэчлэгдлээ");
+      void loadAds();
+    } catch (error) {
+      setMyAds((current) => current.map((item) => item.adId === ad.adId ? { ...item, status: previous } : item));
+      setNotice(getApiErrorMessage(error, "Зарын төлөв шинэчлэх үед алдаа гарлаа."));
+    } finally {
+      setBusyAdId(null);
+    }
+  }
+
+  async function deleteOwnerAd(ad: OwnerAdvertisement) {
+    if (!window.confirm(`“${ad.title}” зарыг устгах уу? Энэ үйлдлийг буцаах боломжгүй.`)) return;
+    setBusyAdId(ad.adId);
+    try {
+      await adsApi.remove(ad.adId);
+      setMyAds((current) => current.map((item) => item.adId === ad.adId ? { ...item, status: "DELETED" } : item));
+      setFavoriteIds((current) => { const next = new Set(current); next.delete(ad.adId); return next; });
+      setNotice("Зар устгагдлаа");
+      void loadAds();
+    } catch (error) {
+      setNotice(getApiErrorMessage(error, "Зар устгах үед алдаа гарлаа."));
+    } finally {
+      setBusyAdId(null);
+    }
   }
 
   async function toggleFavorite(adId: number) {
@@ -438,8 +581,11 @@ export function App() {
     const isFavorite = next.has(adId);
     if (isFavorite) {
       next.delete(adId);
+      setFavoriteAds((current) => current.filter((ad) => ad.adId !== adId));
     } else {
       next.add(adId);
+      const matched = ads.find((ad) => ad.adId === adId) ?? (selectedAd?.adId === adId ? selectedAd : undefined);
+      if (matched) setFavoriteAds((current) => current.some((ad) => ad.adId === adId) ? current : [matched, ...current]);
     }
     setFavoriteIds(next);
 
@@ -452,6 +598,7 @@ export function App() {
       setNotice(isFavorite ? "Favorite устгалаа" : "Favorite нэмлээ");
     } catch {
       setFavoriteIds(favoriteIds);
+      void reloadFavorites();
       setNotice("Favorite хадгалах үед backend алдаа өглөө");
     }
   }
@@ -516,10 +663,25 @@ export function App() {
     }
   }
 
+  function applyBrowseFilters(event: React.FormEvent) {
+    event.preventDefault();
+    const minimum = minPriceDraft ? Number(minPriceDraft) : undefined;
+    const maximum = maxPriceDraft ? Number(maxPriceDraft) : undefined;
+    if (minimum !== undefined && maximum !== undefined && minimum > maximum) { setFilterError("Доод үнэ дээд үнээс их байж болохгүй."); return; }
+    setFilterError(""); setKeyword(keywordDraft.trim()); setMinPrice(minPriceDraft); setMaxPrice(maxPriceDraft); setPage(1);
+  }
+
+  function resetBrowseFilters() {
+    setKeyword(""); setKeywordDraft(""); setSelectedCategoryId(0); setSelectedSubcategoryId(0); setSelectedLocationId(0); setSort("newest"); setMinPrice(""); setMaxPrice(""); setMinPriceDraft(""); setMaxPriceDraft(""); setFilterError(""); setPage(1);
+  }
+
   return (
     <div className="app">
       <header className="topbar">
-        <strong>BO Zar</strong>
+        <button className="brand" type="button" onClick={() => navigate("browse")} aria-label="BoZar home">
+          <span className="brand-mark">B</span>
+          <span>BoZar</span>
+        </button>
         <nav>
           <span>Зарууд</span>
           <span>Ангилал</span>
@@ -538,6 +700,7 @@ export function App() {
               <User size={18} />
             </button>
           )}
+          <button className="favorites-button" type="button" onClick={openFavorites} title="Хадгалсан зарууд"><Heart size={18} fill={favoriteIds.size ? "currentColor" : "none"} /><span className="favorites-count">{favoriteIds.size}</span></button>
           <button className="notification-button" type="button" title="Мэдэгдэл">
             <Bell size={18} />
           </button>
@@ -547,7 +710,11 @@ export function App() {
         </div>
       </header>
 
-      {activeView === "account" && session && profile ? (
+      {activeView === "notFound" ? (
+        <NotFoundView onHome={() => navigate("browse")} onBack={() => window.history.back()} />
+      ) : activeView === "favorites" && session ? (
+        <SavedAdsView ads={favoriteAds} loading={favoritesLoading} error={favoritesError} resolveImageUrl={resolveImageUrl} onBack={() => navigate("browse")} onRetry={() => void reloadFavorites()} onOpen={setSelectedAd} onRemove={(adId) => void toggleFavorite(adId)} />
+      ) : activeView === "account" && session && profile ? (
         <AccountView
           profile={profile}
           locations={locations}
@@ -555,17 +722,23 @@ export function App() {
           loading={ownerLoading}
           error={ownerError}
           saving={profileSaving}
+          passwordSaving={passwordSaving}
+          busyAdId={busyAdId}
           resolveImageUrl={resolveImageUrl}
-          onBack={() => setActiveView("browse")}
+          onBack={() => navigate("browse")}
           onRetry={() => void loadOwnerData()}
           onSaveProfile={saveProfile}
+          onChangePassword={changePassword}
+          onEditAd={setEditingAd}
+          onStatusChange={(ad, status) => void changeOwnerAdStatus(ad, status)}
+          onDeleteAd={(ad) => void deleteOwnerAd(ad)}
           onLogout={performLogout}
         />
       ) : activeView === "account" && session ? (
         <main className="account-view account-loading" aria-busy={!ownerError}>
           {ownerError ? <div className="account-panel owner-state owner-error" role="alert">
             <strong>Профайлыг ачаалж чадсангүй.</strong><span>{ownerError}</span>
-            <div className="account-error-actions"><button type="button" onClick={() => setActiveView("browse")}>Зар үзэх</button><button type="button" onClick={() => void loadOwnerData()}>Дахин оролдох</button><button type="button" onClick={performLogout}>Гарах</button></div>
+            <div className="account-error-actions"><button type="button" onClick={() => navigate("browse")}>Зар үзэх</button><button type="button" onClick={() => void loadOwnerData()}>Дахин оролдох</button><button type="button" onClick={performLogout}>Гарах</button></div>
           </div> : <div className="account-loading-card" />}
         </main>
       ) : (
@@ -574,6 +747,22 @@ export function App() {
           <span className="eyebrow">Маркетплейс</span>
           <h1>Ойр байгаа зар, үйлчилгээ, дайврыг нэг дороос.</h1>
           <span className="data-source">{source === "api" ? "Backend data" : "Offline"}</span>
+          <form className="browse-filter-panel" aria-label="Зар хайх, шүүх" onSubmit={applyBrowseFilters}>
+            <div className="search"><Search size={20} /><input aria-label="Зар хайх" value={keywordDraft} onChange={(event) => setKeywordDraft(event.target.value)} placeholder="Гарчиг эсвэл тайлбараар хайх…" maxLength={200} /><button type="submit"><Search size={17} /> Хайх</button></div>
+            <button className="mobile-filter-toggle" type="button" aria-label="Шүүлтүүр ба эрэмбэ" aria-expanded={filtersOpen} aria-controls="browse-filter-controls" onClick={() => setFiltersOpen((current) => !current)}>
+              <SlidersHorizontal size={17} /> Шүүлтүүр ба эрэмбэ
+              <span>{filtersOpen ? "−" : "+"}</span>
+            </button>
+            <div id="browse-filter-controls" className={`browse-controls${filtersOpen ? " is-open" : ""}`}>
+              <label>Дэд ангилал<select value={selectedSubcategoryId} disabled={!selectedCategoryId || subcategoriesLoading} onChange={(event) => { setSelectedSubcategoryId(Number(event.target.value)); setPage(1); }}><option value="0">{subcategoriesLoading ? "Ачаалж байна…" : "Бүх дэд ангилал"}</option>{subcategories.map((item) => <option key={item.subcategoryId} value={item.subcategoryId}>{item.name}</option>)}</select></label>
+              <label>Байршил<select value={selectedLocationId} onChange={(event) => { setSelectedLocationId(Number(event.target.value)); setPage(1); }}><option value="0">Бүх байршил</option>{locations.map((item) => <option key={item.locationId} value={item.locationId}>{item.name}</option>)}</select></label>
+              <label>Доод үнэ<input type="number" min="0" step="1" inputMode="numeric" value={minPriceDraft} onChange={(event) => setMinPriceDraft(event.target.value)} placeholder="0" /></label>
+              <label>Дээд үнэ<input type="number" min="0" step="1" inputMode="numeric" value={maxPriceDraft} onChange={(event) => setMaxPriceDraft(event.target.value)} placeholder="Хязгааргүй" /></label>
+              <label>Эрэмбэлэх<select value={sort} onChange={(event) => { setSort(event.target.value as AdSort); setPage(1); }}><option value="newest">Шинэ эхэнд</option><option value="oldest">Хуучин эхэнд</option><option value="mostViewed">Их үзсэн</option><option value="priceAsc">Үнэ өсөх</option><option value="priceDesc">Үнэ буурах</option></select></label>
+              <div className="filter-actions"><button type="submit"><SlidersHorizontal size={16} /> Шүүлт хэрэглэх</button><button type="button" className="filter-reset" onClick={resetBrowseFilters}><RotateCcw size={16} /> Цэвэрлэх</button></div>
+            </div>
+            {filterError && <p className="filter-error" role="alert">{filterError}</p>}
+          </form>
         </section>
 
         <section className="categories">
@@ -603,7 +792,10 @@ export function App() {
             <h2>Шинэ зарууд</h2>
             <span>{loadingAds ? "Чиглэж байна..." : `${meta.total} зар`}</span>
           </div>
-          <div className="grid">
+          {loadingAds && ads.length === 0 && <div className="browse-loading" role="status" aria-label="Заруудыг ачаалж байна"><span /><span /><span /></div>}
+          {!loadingAds && adsError && <div className="empty-state browse-error" role="alert"><strong>Заруудыг ачаалж чадсангүй.</strong><p>{adsError}</p><button type="button" onClick={() => void loadAds()}>Дахин оролдох</button></div>}
+          {!loadingAds && !adsError && ads.length === 0 && <div className="empty-state"><strong>Тохирох зар олдсонгүй.</strong><p>Шүүлтүүрээ өөрчлөх эсвэл цэвэрлээд дахин оролдоно уу.</p><button type="button" onClick={resetBrowseFilters}>Шүүлтүүр цэвэрлэх</button></div>}
+          {!adsError && <div className="grid">
             {ads.map((ad) => (
               <article className="card" key={ad.adId} onClick={() => setSelectedAd(ad)}>
                 <div className="image-wrap">
@@ -630,7 +822,7 @@ export function App() {
                 </div>
               </article>
             ))}
-          </div>
+          </div>}
           <div className="pagination">
             <button type="button" disabled={page <= 1 || loadingAds} onClick={() => setPage((current) => Math.max(1, current - 1))}>
               Өмнөх
@@ -652,6 +844,7 @@ export function App() {
 
       {showAuth && <AuthDialog onClose={() => setShowAuth(false)} onAuth={handleAuth} />}
       {showCreate && <CreateAdDialog categories={categories} locations={locations} defaultPhone={session?.user.phone ?? ""} initialCategoryId={selectedCategoryId || categories[0]?.categoryId} onClose={() => setShowCreate(false)} onCreate={createAd} />}
+      {editingAd && <EditAdDialog ad={editingAd} categories={categories} locations={locations} busy={busyAdId === editingAd.adId} onClose={() => setEditingAd(null)} onSave={updateOwnerAd} />}
       {notice && <Toast message={notice} onDone={() => setNotice("")} />}
     </div>
   );

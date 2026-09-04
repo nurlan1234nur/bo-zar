@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Advertisement } from "../ads/entities/advertisement.entity";
@@ -7,7 +7,7 @@ import { SubCategory } from "../categories/entities/subcategory.entity";
 import { AdvertisementStatus, ReportStatus, UserStatus } from "../common/enums";
 import { Report } from "../reports/entities/report.entity";
 import { User } from "../users/entities/user.entity";
-import { AdminCategoryDto, AdminCreateSubcategoryDto, AdminSubcategoryDto } from "./dto/admin-category.dto";
+import { AdminCategoryDto, AdminSubcategoryDto } from "./dto/admin-category.dto";
 import { AdminActionLog } from "./entities/admin-action-log.entity";
 
 @Injectable()
@@ -22,120 +22,31 @@ export class AdminService {
   ) {}
 
   async reports() {
-    try {
-      const reports = await this.reportRepository.find({
-        relations: ["advertisement", "reporter"],
-        order: { createdAt: "DESC" },
-      });
-
-      if (reports.length > 0) {
-        return reports.map((report) => ({
-          reportId: Number(report.reportId),
-          adId: Number(report.advertisement.adId),
-          adTitle: report.advertisement.title,
-          reporterName: report.reporter.fullName,
-          reason: report.reason,
-          comment: report.comment,
-          status: report.status,
-          createdAt: report.createdAt.toISOString(),
-        }));
-      }
-    } catch {
-      // Keep admin dashboard usable while DB setup is still in progress.
-    }
-
-    return [];
+    const reports = await this.reportRepository.find({ relations: ["advertisement", "reporter"], order: { createdAt: "DESC" } });
+    return reports.map((report) => ({ reportId: Number(report.reportId), adId: Number(report.advertisement.adId), adTitle: report.advertisement.title, reporterName: report.reporter.fullName, reason: report.reason, comment: report.comment, status: report.status, createdAt: report.createdAt.toISOString() }));
   }
 
   async users() {
-    try {
-      const users = await this.userRepository.find({
-        relations: ["role", "location", "advertisements"],
-        order: { createdAt: "DESC" },
-        take: 100,
-      });
-
-      return users.map((user) => ({
-        userId: Number(user.userId),
-        fullName: user.fullName,
-        phone: user.phone,
-        email: user.email,
-        role: user.role.roleName,
-        status: user.status,
-        locationName: user.location?.name,
-        adCount: user.advertisements?.length ?? 0,
-        createdAt: user.createdAt.toISOString(),
-        updatedAt: user.updatedAt.toISOString(),
-      }));
-    } catch {
-      // Keep admin moderation usable while DB setup is still in progress.
-    }
-
-    return [];
+    const users = await this.userRepository.find({ relations: ["role", "location", "advertisements"], order: { createdAt: "DESC" }, take: 100 });
+    return users.map((user) => ({ userId: Number(user.userId), fullName: user.fullName, phone: user.phone, email: user.email, role: user.role.roleName, status: user.status, locationName: user.location?.name, adCount: user.advertisements?.length ?? 0, createdAt: user.createdAt.toISOString(), updatedAt: user.updatedAt.toISOString() }));
   }
 
   async stats() {
-    try {
-      const [users, ads, activeAds, reports, categories] = await Promise.all([
-        this.userRepository.count(),
-        this.adRepository.count(),
-        this.adRepository.count({ where: { status: AdvertisementStatus.ACTIVE } }),
-        this.reportRepository.count(),
-        this.categoryRepository.count({ where: { isActive: true } }),
-      ]);
-
-      if (users || ads || reports || categories) {
-        return { users, ads, activeAds, reports, categories };
-      }
-    } catch {
-      // Keep admin dashboard usable while DB setup is still in progress.
-    }
-
-    return {
-      users: 0,
-      ads: 0,
-      activeAds: 0,
-      reports: 0,
-      categories: 0,
-    };
+    const [users, ads, activeAds, reports, categories] = await Promise.all([this.userRepository.count(), this.adRepository.count(), this.adRepository.count({ where: { status: AdvertisementStatus.ACTIVE } }), this.reportRepository.count(), this.categoryRepository.count({ where: { isActive: true } })]);
+    return { users, ads, activeAds, reports, categories };
   }
 
   async logs() {
-    try {
-      const logs = await this.logRepository.find({
-        relations: ["adminUser"],
-        order: { createdAt: "DESC" },
-        take: 20,
-      });
-
-      return logs.map((log) => ({
-        logId: Number(log.logId),
-        adminName: log.adminUser?.fullName ?? "Admin",
-        actionType: log.actionType,
-        targetType: log.targetType,
-        targetId: Number(log.targetId),
-        description: log.description,
-        createdAt: log.createdAt.toISOString(),
-      }));
-    } catch {
-      // Keep admin UI usable while DB setup is still in progress.
-    }
-
-    return [];
+    const logs = await this.logRepository.find({ relations: ["adminUser"], order: { createdAt: "DESC" }, take: 20 });
+    return logs.map((log) => ({ logId: Number(log.logId), adminName: log.adminUser?.fullName ?? "Admin", actionType: log.actionType, targetType: log.targetType, targetId: Number(log.targetId), description: log.description, createdAt: log.createdAt.toISOString() }));
   }
 
   async hideAd(adId: string) {
-    try {
-      const ad = await this.adRepository.findOne({ where: { adId } });
-      if (ad) {
-        ad.status = AdvertisementStatus.HIDDEN;
-        await this.adRepository.save(ad);
-      }
-      await this.log("HIDE_AD", "ADVERTISEMENT", adId, "Admin hid advertisement");
-    } catch {
-      // Keep moderation endpoint predictable while DB setup is still in progress.
-    }
-
+    const ad = await this.adRepository.findOne({ where: { adId } });
+    if (!ad) throw new NotFoundException("Advertisement not found");
+    ad.status = AdvertisementStatus.HIDDEN;
+    await this.adRepository.save(ad);
+    await this.log("HIDE_AD", "ADVERTISEMENT", adId, "Admin hid advertisement");
     return { adId: Number(adId), status: AdvertisementStatus.HIDDEN };
   }
 
@@ -148,18 +59,12 @@ export class AdminService {
   }
 
   async resolveReport(reportId: string) {
-    try {
-      const report = await this.reportRepository.findOne({ where: { reportId } });
-      if (report) {
-        report.status = ReportStatus.RESOLVED;
-        report.reviewedAt = new Date();
-        await this.reportRepository.save(report);
-      }
-      await this.log("RESOLVE_REPORT", "REPORT", reportId, "Admin resolved report");
-    } catch {
-      // Keep moderation endpoint predictable while DB setup is still in progress.
-    }
-
+    const report = await this.reportRepository.findOne({ where: { reportId } });
+    if (!report) throw new NotFoundException("Report not found");
+    report.status = ReportStatus.RESOLVED;
+    report.reviewedAt = new Date();
+    await this.reportRepository.save(report);
+    await this.log("RESOLVE_REPORT", "REPORT", reportId, "Admin resolved report");
     return { reportId: Number(reportId), status: ReportStatus.RESOLVED };
   }
 
@@ -179,7 +84,7 @@ export class AdminService {
   async updateCategory(categoryId: string, body: AdminCategoryDto) {
     const category = await this.categoryRepository.findOne({ where: { categoryId } });
     if (!category) {
-      return { categoryId: Number(categoryId), status: "NOT_FOUND" };
+      throw new NotFoundException("Category not found");
     }
 
     category.name = body.name ?? category.name;
@@ -193,18 +98,19 @@ export class AdminService {
 
   async deleteCategory(categoryId: string) {
     const category = await this.categoryRepository.findOne({ where: { categoryId } });
-    if (category) {
-      category.isActive = false;
-      await this.categoryRepository.save(category);
-      await this.log("DISABLE_CATEGORY", "CATEGORY", categoryId, `Disabled category ${category.name}`);
-    }
+    if (!category) throw new NotFoundException("Category not found");
+    category.isActive = false;
+    await this.categoryRepository.save(category);
+    await this.log("DISABLE_CATEGORY", "CATEGORY", categoryId, `Disabled category ${category.name}`);
     return { categoryId: Number(categoryId), isActive: false };
   }
 
   async createSubcategory(categoryId: string, body: AdminSubcategoryDto) {
+    const category = await this.categoryRepository.findOne({ where: { categoryId } });
+    if (!category) throw new NotFoundException("Category not found");
     const subcategory = await this.subcategoryRepository.save(
       this.subcategoryRepository.create({
-        category: { categoryId } as Category,
+        category,
         name: body.name,
         description: body.description,
         isActive: body.isActive ?? true,
@@ -220,7 +126,7 @@ export class AdminService {
       relations: ["category"],
     });
     if (!subcategory) {
-      return { subcategoryId: Number(subcategoryId), status: "NOT_FOUND" };
+      throw new NotFoundException("Subcategory not found");
     }
 
     subcategory.name = body.name ?? subcategory.name;
@@ -233,26 +139,19 @@ export class AdminService {
 
   async deleteSubcategory(subcategoryId: string) {
     const subcategory = await this.subcategoryRepository.findOne({ where: { subcategoryId } });
-    if (subcategory) {
-      subcategory.isActive = false;
-      await this.subcategoryRepository.save(subcategory);
-      await this.log("DISABLE_SUBCATEGORY", "SUBCATEGORY", subcategoryId, `Disabled subcategory ${subcategory.name}`);
-    }
+    if (!subcategory) throw new NotFoundException("Subcategory not found");
+    subcategory.isActive = false;
+    await this.subcategoryRepository.save(subcategory);
+    await this.log("DISABLE_SUBCATEGORY", "SUBCATEGORY", subcategoryId, `Disabled subcategory ${subcategory.name}`);
     return { subcategoryId: Number(subcategoryId), isActive: false };
   }
 
   private async updateUserStatus(userId: string, status: UserStatus, actionType: string) {
-    try {
-      const user = await this.userRepository.findOne({ where: { userId } });
-      if (user) {
-        user.status = status;
-        await this.userRepository.save(user);
-      }
-      await this.log(actionType, "USER", userId, `Admin set user status to ${status}`);
-    } catch {
-      // Keep moderation endpoint predictable while DB setup is still in progress.
-    }
-
+    const user = await this.userRepository.findOne({ where: { userId } });
+    if (!user) throw new NotFoundException("User not found");
+    user.status = status;
+    await this.userRepository.save(user);
+    await this.log(actionType, "USER", userId, `Admin set user status to ${status}`);
     return { userId: Number(userId), status };
   }
 

@@ -30,6 +30,17 @@ describe("UsersService", () => {
     });
   });
 
+  it("returns 404 only when the profile user does not exist", async () => {
+    const service = new UsersService({ findOne: jest.fn().mockResolvedValue(null) } as never, {} as never);
+    await expect(service.findProfile("404")).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("propagates profile read failures instead of translating them to 404", async () => {
+    const failure = new Error("profile read failed");
+    const service = new UsersService({ findOne: jest.fn().mockRejectedValue(failure) } as never, {} as never);
+    await expect(service.findProfile("42")).rejects.toBe(failure);
+  });
+
   it("refreshes location data after updating the whitelisted profile fields", async () => {
     const editable = { ...profileUser, location: { ...profileUser.location } };
     const refreshed = { ...editable, fullName: "Updated Owner", email: "updated@example.com", location: { locationId: "3", name: "Ulaanbaatar" } };
@@ -84,6 +95,22 @@ describe("UsersService", () => {
     expect(userRepository.save).not.toHaveBeenCalled();
   });
 
+  it("propagates profile save failures and reports a missing post-save reload as 500", async () => {
+    const failure = new Error("profile write failed");
+    const failingRepository = { findOne: jest.fn().mockResolvedValue({ ...profileUser }), save: jest.fn().mockRejectedValue(failure) };
+    await expect(new UsersService(failingRepository as never, {} as never).updateProfile("42", { fullName: "Updated" })).rejects.toBe(failure);
+
+    const missingReloadRepository = { findOne: jest.fn().mockResolvedValueOnce({ ...profileUser }).mockResolvedValueOnce(null), save: jest.fn(async (user) => user) };
+    await expect(new UsersService(missingReloadRepository as never, {} as never).updateProfile("42", { fullName: "Updated" })).rejects.toMatchObject({ status: 500 });
+  });
+
+  it("returns 404 when updating a profile that does not exist", async () => {
+    const userRepository = { findOne: jest.fn().mockResolvedValue(null), save: jest.fn() };
+    const service = new UsersService(userRepository as never, {} as never);
+    await expect(service.updateProfile("404", { fullName: "Missing" })).rejects.toMatchObject({ status: 404 });
+    expect(userRepository.save).not.toHaveBeenCalled();
+  });
+
   it("keeps non-public advertisements visible in the authenticated owner's my-ads query", async () => {
     const hiddenAd = {
       adId: "7",
@@ -110,6 +137,12 @@ describe("UsersService", () => {
     expect(advertisementRepository.find).toHaveBeenCalledWith(
       expect.objectContaining({ where: { user: { userId: "42" } } }),
     );
+  });
+
+  it("returns a truthful empty owner list and propagates owner-ad read failures", async () => {
+    await expect(new UsersService({} as never, { find: jest.fn().mockResolvedValue([]) } as never).findMyAds("42")).resolves.toEqual([]);
+    const failure = new Error("owner ads read failed");
+    await expect(new UsersService({} as never, { find: jest.fn().mockRejectedValue(failure) } as never).findMyAds("42")).rejects.toBe(failure);
   });
 
   it("maps the main image, falls back to the first image, and never invents an external placeholder", async () => {
