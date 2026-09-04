@@ -87,21 +87,13 @@ describe("AdsService", () => {
       sort: "priceAsc",
     });
 
-    expect(repository.findAndCount).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          status: AdvertisementStatus.ACTIVE,
-          title: ILike("%apartment%"),
-          category: { categoryId: "3" },
-          subcategory: { subcategoryId: "4" },
-          location: { locationId: "5" },
-          price: Between("100", "900"),
-        }),
-        order: { price: "ASC" },
-        skip: 10,
-        take: 10,
-      }),
-    );
+    const options = repository.findAndCount.mock.calls[0][0];
+    expect(options).toEqual(expect.objectContaining({ order: { price: "ASC" }, skip: 10, take: 10 }));
+    expect(options.where).toHaveLength(2);
+    expect(options.where[0]).toEqual(expect.objectContaining({ status: AdvertisementStatus.ACTIVE, title: ILike("%apartment%"), category: { categoryId: "3" }, subcategory: { subcategoryId: "4" }, location: { locationId: "5" }, price: Between("100", "900") }));
+    expect(options.where[1]).toEqual(expect.objectContaining({ status: AdvertisementStatus.ACTIVE, description: ILike("%apartment%"), category: { categoryId: "3" }, subcategory: { subcategoryId: "4" }, location: { locationId: "5" }, price: Between("100", "900") }));
+    expect(publicCutoff(options.where[0])).toEqual(new Date("2026-07-14T12:00:00.000Z"));
+    expect(publicCutoff(options.where[1])).toEqual(new Date("2026-07-14T12:00:00.000Z"));
   });
 
   it("uses one-sided price filters when only one bound is present", async () => {
@@ -192,17 +184,13 @@ describe("AdsService", () => {
 
     const options = repository.findAndCount.mock.calls[0][0];
     expect(options).toEqual(expect.objectContaining({ order: { price: "ASC" }, skip: 10, take: 10 }));
-    expect(options.where).toEqual(
-      expect.objectContaining({
-        status: AdvertisementStatus.ACTIVE,
-        title: ILike("%apartment%"),
-        category: { categoryId: "3" },
-        subcategory: { subcategoryId: "4" },
-        location: { locationId: "5" },
-        price: Between("100", "900"),
-      }),
-    );
-    expect(publicCutoff(options.where)).toEqual(new Date("2026-07-14T12:00:00.000Z"));
+    expect(options.where).toHaveLength(2);
+    for (const where of options.where) {
+      expect(where).toEqual(expect.objectContaining({ status: AdvertisementStatus.ACTIVE, category: { categoryId: "3" }, subcategory: { subcategoryId: "4" }, location: { locationId: "5" }, price: Between("100", "900") }));
+      expect(publicCutoff(where)).toEqual(new Date("2026-07-14T12:00:00.000Z"));
+    }
+    expect(options.where[0].title).toEqual(ILike("%apartment%"));
+    expect(options.where[1].description).toEqual(ILike("%apartment%"));
   });
 
   it.each([

@@ -11,16 +11,16 @@ Status meanings:
 |---|---|---|---|---|---|
 | Register/login/logout | Implemented | Implemented | Login/logout | Implemented | Implemented |
 | Profile view/update | Implemented | Implemented in Account view | Session validation only | Profile view | Partial client parity |
-| Password change/reset | API implemented | No UI | No UI | No UI | Partial |
-| Browse/detail ads | Implemented; public results are ACTIVE and non-expired | Implemented | Moderation context | Implemented | Implemented |
-| Search/filter/sort | Implemented | Implemented | User/report filters | Implemented | Implemented; title-only keyword search |
+| Password change/reset | API implemented | Authenticated password-change UI; reset has no UI | No UI | No UI | Partial |
+| Browse/detail ads | Implemented; public results are ACTIVE and non-expired | Implemented with the responsive shared-token marketplace design | Moderation context | Implemented | Implemented |
+| Search/filter/sort | Implemented with title/description keyword matching | Implemented with URL-synchronized keyword, category/subcategory, location, price, sort, pagination state, and compact mobile filter disclosure | User/report filters | Implemented | Implemented |
 | Create ads | Implemented | Implemented | Not applicable | Implemented | Implemented |
 | View own ads in all statuses | Implemented | Implemented | Not applicable | Implemented | Implemented |
-| Edit/delete own ads | Implemented | No management actions | Not applicable | Implemented | Partial client parity |
+| Edit/delete own ads | Implemented | Implemented in Account view, including status changes and soft-delete | Not applicable | Implemented | Implemented |
 | Image upload | Owner authorization, content validation, limits, and coordinated local cleanup implemented | Implemented | Not applicable | Implemented | Implemented locally; direct static URL and durable-storage gaps remain |
-| Favorites | Implemented; add/list enforce public visibility | Partial: add/remove toggle, no saved-advertisements view | Not applicable | Implemented | Partial public-web parity |
+| Favorites | Implemented; add/list enforce public visibility | Implemented with a dedicated saved-advertisements view | Not applicable | Implemented | Implemented |
 | Reports | Implemented | Implemented | Review/resolve | Implemented | Partial error/audit behavior |
-| User moderation | Implemented | Not applicable | Implemented | Not applicable | Implemented with token-status limitation |
+| User moderation | Implemented with request-time user-status validation | Not applicable | Implemented | Not applicable | Implemented |
 | Category management | Implemented | Read-only | Implemented | Read-only | Implemented |
 | Dashboard/action logs | Implemented | Not applicable | Implemented | Not applicable | Partial audit attribution |
 | Light/dark theme | Not applicable | Implemented | Implemented | Shared light theme | Partial |
@@ -38,6 +38,6 @@ At the latest documentation review, backend unit tests, backend build, public we
 
 Image upload/delete uses owner-only generic endpoints. Non-owners, including staff, do not receive an override; any future staff image-removal workflow requires a separate attributed moderation endpoint. Upload validation checks JPEG/PNG/WEBP content, MIME, and extension before UUID-named local files are persisted. Local filesystem and database failures use compensating cleanup, but public static URLs are not status-aware and the database has no single-main-image constraint.
 
-The public web Account view restores stored sessions through `GET /users/me`, refreshes local profile state from the server, supports allowlisted profile updates, and lists the owner's advertisements across every status. Owner ad-management, password actions, and browser routes remain separate work.
+The public web Account view restores stored sessions through `GET /users/me`, refreshes local profile state from the server, supports allowlisted profile updates and authenticated password changes, and lists the owner's advertisements across every status. Owners can edit advertisements, switch between active, sold, and inactive states, and soft-delete with confirmation. The browse, account, and favorites views use deep-linkable browser paths with protected-route handling. Password reset remains separate work.
 
-Public-web advertisement creation preflights the declared image type, 5-MB-per-file limit, and 8-file limit before creating the advertisement. The backend remains authoritative. A later server-side upload failure does not undo the created advertisement or retain a local blob preview, and the UI reports that partial outcome. A dedicated public-web Favorites view remains planned for `feat/web-favorites-view`.
+Public-web advertisement creation preflights the declared image type, 5-MB-per-file limit, and 8-file limit before creating the advertisement. The backend remains authoritative. A later server-side upload failure does not undo the created advertisement or retain a local blob preview, and the UI reports that partial outcome. The authenticated Favorites view lists the server-backed saved advertisements and supports opening or removing them.

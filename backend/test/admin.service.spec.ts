@@ -1,3 +1,4 @@
+import { NotFoundException } from "@nestjs/common";
 import { AdminService } from "../src/admin/admin.service";
 import { AdvertisementStatus, UserStatus } from "../src/common/enums";
 
@@ -100,5 +101,39 @@ describe("AdminService", () => {
       isActive: true,
     });
     expect(logRepository.save).toHaveBeenCalledWith(expect.objectContaining({ actionType: "CREATE_CATEGORY", targetType: "CATEGORY" }));
+  });
+
+  it("returns truthful zero dashboard statistics", async () => {
+    const service = createService({ userRepository: { count: jest.fn().mockResolvedValue(0) }, adRepository: { count: jest.fn().mockResolvedValue(0) }, reportRepository: { count: jest.fn().mockResolvedValue(0) }, categoryRepository: { count: jest.fn().mockResolvedValue(0) } });
+    await expect(service.stats()).resolves.toEqual({ users: 0, ads: 0, activeAds: 0, reports: 0, categories: 0 });
+  });
+
+  it("propagates dashboard read failures instead of returning synthetic empty data", async () => {
+    const failure = new Error("database unavailable");
+    const service = createService({ reportRepository: { find: jest.fn().mockRejectedValue(failure) } });
+    await expect(service.reports()).rejects.toBe(failure);
+  });
+
+  it("returns not found for missing moderation targets", async () => {
+    await expect(createService({ adRepository: { findOne: jest.fn().mockResolvedValue(null) } }).hideAd("404")).rejects.toBeInstanceOf(NotFoundException);
+    await expect(createService({ userRepository: { findOne: jest.fn().mockResolvedValue(null) } }).blockUser("404")).rejects.toBeInstanceOf(NotFoundException);
+    await expect(createService({ reportRepository: { findOne: jest.fn().mockResolvedValue(null) } }).resolveReport("404")).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("returns not found for missing catalog targets and parent categories", async () => {
+    const categoryRepository = { findOne: jest.fn().mockResolvedValue(null) };
+    await expect(createService({ categoryRepository }).updateCategory("404", { name: "Missing" })).rejects.toBeInstanceOf(NotFoundException);
+    await expect(createService({ categoryRepository }).deleteCategory("404")).rejects.toBeInstanceOf(NotFoundException);
+    await expect(createService({ categoryRepository }).createSubcategory("404", { name: "Missing child" })).rejects.toBeInstanceOf(NotFoundException);
+    const subcategoryRepository = { findOne: jest.fn().mockResolvedValue(null) };
+    await expect(createService({ subcategoryRepository }).updateSubcategory("404", { name: "Missing" })).rejects.toBeInstanceOf(NotFoundException);
+    await expect(createService({ subcategoryRepository }).deleteSubcategory("404")).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("propagates moderation persistence failures instead of reporting success", async () => {
+    const failure = new Error("write failed");
+    const ad = { adId: "3", status: AdvertisementStatus.ACTIVE };
+    const service = createService({ adRepository: { findOne: jest.fn().mockResolvedValue(ad), save: jest.fn().mockRejectedValue(failure) } });
+    await expect(service.hideAd("3")).rejects.toBe(failure);
   });
 });

@@ -1,0 +1,10 @@
+{
+  "description": "Facilitates collaborative project creation by allowing users to brainstorm, plan, and manage tasks in real-time, enhancing teamwork and productivity.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

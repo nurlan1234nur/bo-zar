@@ -46,10 +46,6 @@ export class AdsService {
       where.location = { locationId: String(locationId) };
     }
 
-    if (keyword) {
-      where.title = ILike(`%${keyword}%`);
-    }
-
     if (minPrice !== undefined && maxPrice !== undefined) {
       where.price = Between(String(minPrice), String(maxPrice));
     } else if (minPrice !== undefined) {
@@ -59,8 +55,14 @@ export class AdsService {
     }
 
     const order = this.resolveOrder(query.sort);
+    const searchWhere = keyword
+      ? [
+          { ...where, title: ILike(`%${keyword}%`) },
+          { ...where, description: ILike(`%${keyword}%`) },
+        ]
+      : where;
     const [items, total] = await this.advertisementRepository.findAndCount({
-      where,
+      where: searchWhere,
       relations: ["category", "subcategory", "location", "user", "images"],
       order,
       skip: (page - 1) * size,

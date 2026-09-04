@@ -32,7 +32,7 @@ The backend is a modular NestJS application containing auth, users, ads, categor
 
 ## Cross-cutting behavior
 
-- JWT bearer authentication and role guards protect user/admin routes.
+- JWT bearer authentication reloads current user status and role for every protected request; role guards then protect admin routes.
 - A global validation pipe transforms and whitelists DTO input.
 - Successful API responses use a shared response envelope.
 - Request middleware assigns request IDs, logs timing, and records request events.

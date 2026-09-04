@@ -5,23 +5,24 @@ React Vite public marketplace web app.
 ## Responsibilities
 
 - Public ad browsing
-- Search and filters
+- Search, category/subcategory, location and price filters, sorting, pagination, and shareable URL query state
 - Ad detail
 - Login/register
 - Create advertisements
-- Favorite add/remove toggles and reports
-- Authenticated profile update and all-status My Ads
+- Favorite add/remove toggles, a dedicated saved-advertisements view, and reports
+- Authenticated profile/password update, all-status My Ads, and owner edit/status/soft-delete actions
 
 ## API
 
 Uses the same NestJS backend as `mobile-app`.
 
-Account navigation is intentionally state-based (`browse` / `account`) and has no deep-linkable route. A dedicated saved-advertisements view, owner advertisement management, and password settings are planned separately; favorite toggles alone do not provide a Favorites view.
+The browser paths `/`, `/account`, and `/favorites` are deep-linkable and respond to browser Back/Forward navigation. Account and favorites paths require a valid restored session. Unknown paths render a recoverable 404 view. Password reset UI remains planned separately.
 
 ## Checks
 
 - `corepack pnpm --dir web-app test`
 - `corepack pnpm --dir web-app build`
+- `corepack pnpm --dir web-app lint`
 
 Environment variable:
 
