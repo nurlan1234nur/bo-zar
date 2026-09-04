@@ -2,7 +2,9 @@
 
 BO Zar нь Баян-Өлгий болон Улаанбаатарын хэрэглэгчдэд зориулсан зарын платформ. NestJS API, PostgreSQL, public web, admin panel, Expo mobile app болон shared TypeScript package-ууд бүхий monorepo бүтэцтэй.
 
-> Төлөв: Гол хэрэглэгчийн урсгалууд хэрэгжсэн. Production deployment, durable image storage болон E2E баталгаажуулалт үргэлжилж байна.
+> Төлөв: Гол хэрэглэгчийн урсгалууд хэрэгжсэн. Docker Compose VPS deployment болон durable image storage бэлэн; production smoke test болон E2E баталгаажуулалт шаардлагатай.
+
+Production deployment заавар: [docs/operations/deployment.md](docs/operations/deployment.md)
 
 ## Архитектур
 

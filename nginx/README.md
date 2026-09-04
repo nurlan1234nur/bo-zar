@@ -1,10 +1,3 @@
-# Nginx
+# Nginx gateway
 
-Deployment reverse proxy configuration will live here.
-
-Planned responsibilities:
-
-- Route public web app
-- Route admin web app
-- Proxy `/api` to backend
-- Serve uploaded static files if needed
+The production gateway routes `/` to the public web app, `/admin/` to the admin app, and `/api/` plus `/uploads/` to the backend. See [`docs/operations/deployment.md`](../docs/operations/deployment.md) for VPS setup.

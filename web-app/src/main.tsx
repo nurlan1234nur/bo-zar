@@ -83,7 +83,7 @@ const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
 const initialTheme: ThemeName = storedTheme === "dark" ? "dark" : "light";
 let authToken: string | undefined = initialSession?.token;
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
-const API_ASSET_ORIGIN = new URL(API_BASE_URL).origin;
+const API_ASSET_ORIGIN = new URL(API_BASE_URL, window.location.origin).origin;
 
 const apiClient = new ApiClient({
   baseUrl: API_BASE_URL,

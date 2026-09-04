@@ -54,7 +54,7 @@ The archived Figma export is a design prototype, not production functionality.
 - [API client](../packages/api-client/README.md)
 - [Shared types](../packages/shared-types/README.md)
 - [Design tokens](../packages/design-tokens/README.md)
-- [Nginx placeholder](../nginx/README.md)
+- [Nginx gateway](../nginx/README.md)
 
 ## Archive
 

@@ -2,9 +2,10 @@ FROM node:22-alpine AS build
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY packages ./packages
-COPY admin-web ./admin-web
-RUN pnpm install --frozen-lockfile
+COPY admin-web/package.json admin-web/package.json
+COPY packages packages
+RUN pnpm install --frozen-lockfile --filter @bozar/admin-web...
+COPY admin-web admin-web
 ARG VITE_API_BASE_URL=/api/v1
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 RUN pnpm --dir admin-web build
